@@ -21,11 +21,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,13 +34,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.disagio.busroma.arrivi.minutiDa
-import dev.disagio.busroma.dati.Api
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.LaunchedEffect
 import dev.disagio.busroma.dati.ArrivoVicino
+import dev.disagio.busroma.arrivi.minutiDa
 import dev.disagio.busroma.posizione.Posizione
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
-import kotlinx.coroutines.launch
 
 /**
  * Entrambi i permessi insieme: e' l'unico modo in cui Android mostra la scelta
@@ -67,78 +66,25 @@ private enum class Ordine(val etichetta: String) {
     Attesa("Attesa"),
 }
 
-private sealed interface StatoVicine {
-    object Riposo : StatoVicine
-    object InCorso : StatoVicine
-    data class Trovati(
-        val arrivi: List<ArrivoVicino>,
-        val incertezzaM: Float? = null,
-        val etaMin: Int = 0,
-    ) : StatoVicine
-    data class Errore(val messaggio: String) : StatoVicine
-}
-
-/**
- * "Qui intorno": gli ARRIVI alle fermate vicine, non l'elenco delle paline.
- *
- * La distinzione conta, ed era sbagliata nella prima versione. Mostrare le
- * fermate risponde a "dove sono le paline"; chi e' in strada col telefono in
- * mano si chiede "cosa posso prendere adesso". Sul web la sezione mostra gli
- * arrivi, e i due ordinamenti servono a mediare fra le due domande.
- *
- * IL PERMESSO SI CHIEDE AL TOCCO, mai all'apertura: un'app di trasporti che
- * chiede la posizione appena la apri insegna a negare il permesso per
- * riflesso, e poi non lo riottieni piu'.
- */
 @Composable
 fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
     val contesto = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var stato by remember { mutableStateOf<StatoVicine>(StatoVicine.Riposo) }
+    val vm: VicineViewModel = viewModel()
+    val stato by vm.stato.collectAsStateWithLifecycle()
     var ordine by remember { mutableStateOf(Ordine.Distanza) }
-    // L'istante di calcolo dell'attesa: i minuti si ricalcolano da eta_ts e non
-    // si usa il campo `minutes` del server, che e' un'istantanea e invecchia
-    // sullo schermo.
-    var adesso by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    fun carica() {
-        stato = StatoVicine.InCorso
-        scope.launch {
-            val pos = Posizione.corrente(contesto)
-            if (pos == null) {
-                stato = StatoVicine.Errore(
-                    if (Posizione.permessoConcesso(contesto)) {
-                        "Non riesco a leggere la posizione. Se sei al chiuso o in metro, capita."
-                    } else {
-                        "Serve il permesso di posizione."
-                    },
-                )
-                return@launch
-            }
-            adesso = System.currentTimeMillis()
-            stato = try {
-                StatoVicine.Trovati(
-                    arrivi = Api.arriviVicini(pos.latitude, pos.longitude).arrivals,
-                    incertezzaM = if (pos.hasAccuracy()) pos.accuracy else null,
-                    etaMin = ((System.currentTimeMillis() - pos.time) / 60_000L)
-                        .coerceAtLeast(0L).toInt(),
-                )
-            } catch (e: Exception) {
-                StatoVicine.Errore("Gli arrivi qui intorno non arrivano.")
-            }
-        }
-    }
+    // Se il permesso c'e' gia', si carica da se': il tasto serviva a chiederlo.
+    LaunchedEffect(Unit) { vm.caricaSePossibile(contesto) }
+
+    fun carica() = vm.carica(contesto)
 
     val richiesta = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { esiti ->
-        if (esiti.values.any { it }) {
-            carica()
-        } else {
-            stato = StatoVicine.Errore(
-                "Senza posizione non posso dirti cosa hai intorno. Cerca la fermata per nome.",
-            )
-        }
+        // Concesso o negato, si prova comunque: il ViewModel distingue i due
+        // casi e mette il messaggio giusto. Due rami identici sarebbero solo
+        // codice in piu'.
+        carica()
     }
 
     fun chiediOCarica() {
@@ -203,15 +149,15 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                     // del web.
                     val ordinati = when (ordine) {
                         Ordine.Distanza -> s.arrivi.sortedWith(
-                            compareBy({ it.distanzaM ?: Int.MAX_VALUE }, { minuti(it, adesso) }),
+                            compareBy({ it.distanzaM ?: Int.MAX_VALUE }, { minuti(it, s.adesso) }),
                         )
                         Ordine.Attesa -> s.arrivi.sortedWith(
-                            compareBy({ minuti(it, adesso) }, { it.distanzaM ?: Int.MAX_VALUE }),
+                            compareBy({ minuti(it, s.adesso) }, { it.distanzaM ?: Int.MAX_VALUE }),
                         )
                     }
 
                     ordinati.take(QUANTI).forEach { a ->
-                        RigaArrivoVicino(a, adesso, c) { apri(a.stopId) }
+                        RigaArrivoVicino(a, s.adesso, c) { apri(a.stopId) }
                         HorizontalDivider(color = c.neutral200)
                     }
                 }
@@ -222,7 +168,7 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
 
 private fun minuti(a: ArrivoVicino, adesso: Long) = minutiDa(a.etaTs, adesso) ?: Int.MAX_VALUE
 
-private fun avviso(s: StatoVicine.Trovati): String? {
+fun avviso(s: StatoVicine.Trovati): String? {
     val incerta = s.incertezzaM != null && s.incertezzaM > Posizione.INCERTEZZA_ACCETTABILE_M
     val vecchia = s.etaMin >= 5
     return when {
