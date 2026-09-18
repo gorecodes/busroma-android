@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Rosso ATAC, lo stesso brand500 della palette chiara in Colori.kt.
-         Se un giorno si volesse un'icona meno accesa, il sole
-         dell'illustrazione e' #D8624A: si cambia qui e si rigenera. -->
-    <color name="sfondo_icona">#C4161C</color>
+    <!-- Porpora istituzionale, lo stesso brand500 della palette chiara in
+         Colori.kt: Pantone 202 C dello stemma di Roma. Cambiarlo qui non
+         basta, va rigenerato anche il PNG dello splash che si porta dentro
+         il disco: python3 grafica/genera-icone.py -->
+    <color name="sfondo_icona">#8E001C</color>
 
     <!-- Lo sfondo dello splash e' neutral100, cioe' lo sfondo pagina
          dell'app: cosi' lo splash si dissolve nella prima schermata invece

@@ -4,11 +4,17 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Palette "palina", identica a quella del web.
+ * Palette "palina", quella del web tranne il colore di marca.
  *
  * I valori esadecimali sono copiati uno per uno da `app/globals.css` del
  * repository AtacWatch, non riscritti a occhio: se i due prodotti divergono sui
  * colori sembrano due app diverse.
+ *
+ * CON UNA ECCEZIONE VOLUTA: i tre gradini `brand`. Qui sono il porpora
+ * istituzionale di Roma, sul web resta il rosso precedente. E' una scelta,
+ * non un disallineamento da recuperare: il colore di marca si cambia
+ * sull'app nativa e il web non va toccato. Chi copia i prossimi valori da
+ * globals.css copi tutto tranne `brand`.
  *
  * LA REGOLA CHE TIENE INSIEME TUTTO, la stessa del web: la struttura è
  * acromatica, il colore è un dato. I grigi basalto e ferro portano tutto il
@@ -40,7 +46,27 @@ data class Palette(
     val neutral700: Color,
     val neutral900: Color,
     val neutral950: Color,
-    // Rosso ATAC: non un rosso generico, è il rosso dei mezzi.
+    // PORPORA ISTITUZIONALE, non un rosso generico.
+    //
+    // Prima era #c4161c, un rosso da autopompa scelto a occhio come "rosso
+    // ATAC". Ma ATAC non ha una palette propria: il suo marchio è la fascia
+    // porpora del Comune con lo scudetto SPQR dentro, e quel porpora è il
+    // Pantone 202 C dello stemma di Roma — RGB 142, 0, 28 nel manuale di
+    // identità visiva di Roma Capitale.
+    //
+    // PERCHÉ NON SEMBRA LA MAGLIA DELLA ROMA, che di quello stemma ha preso i
+    // colori. La differenza non sta nelle tinte, sta nell'uso: giallorosso è
+    // porpora e oro ACCOPPIATI a peso uguale, campo rosso e scritta gialla.
+    // Qui il porpora è l'unico accento d'identità, e l'oro non viene promosso
+    // a secondo colore di marca: resta dov'era, cioè funzionale, sugli avvisi
+    // di servizio. I due si sfiorano solo su una riga di arrivi — triangolino
+    // ambra e minuti in ritardo — e a quella dimensione sono due segnali, non
+    // una bandiera.
+    //
+    // Nota: la scala ambra era GIÀ istituzionale senza saperlo. Il giallo del
+    // manuale è il Pantone 130 C, tinta 42°; warn400/500/600 stanno fra 40° e
+    // 43°, cioè la stessa tinta abbassata di luce per restare leggibile come
+    // testo. Non c'è niente da cambiare lì.
     val brand50: Color,
     val brand500: Color,
     val brand600: Color,
@@ -69,9 +95,12 @@ val PaletteChiara = Palette(
     neutral700 = Color(0xFF333C47),
     neutral900 = Color(0xFF1B2027), // basalto: inchiostro
     neutral950 = Color(0xFF10141A),
-    brand50 = Color(0xFFFDF1F1),
-    brand500 = Color(0xFFC4161C),
-    brand600 = Color(0xFFA8121A),
+    brand50 = Color(0xFFF8EDEF),
+    // Pantone 202 C, il valore del manuale senza aggiustamenti. Si guadagna
+    // anche in leggibilità: 8,4:1 sulla pietra contro i 5,2 del rosso
+    // precedente, e 9,7:1 per il bianco sopra contro 6,0.
+    brand500 = Color(0xFF8E001C),
+    brand600 = Color(0xFF700016),
     live500 = Color(0xFF00875A),
     live600 = Color(0xFF006B48),
     warn50 = Color(0xFFFBF3DF),
@@ -113,9 +142,15 @@ val PaletteScura = Palette(
     neutral700 = Color(0xFFC2CBD4),
     neutral900 = Color(0xFFD9E1E8), // inchiostro, fermato prima del bianco
     neutral950 = Color(0xFFE7EDF3),
-    brand50 = Color(0xFF2A1416),
-    brand500 = Color(0xFFF1545A),
-    brand600 = Color(0xFFF3696E),
+    brand50 = Color(0xFF2C1115),
+    // IL COMPROMESSO DELLO SCURO. Il porpora è scuro per natura: a #8e001c su
+    // fondo basalto il contrasto non arriva a 2:1, e come testo è illeggibile.
+    // Schiarendolo alla tinta esatta dello stemma (348°) diventa rosa
+    // confetto. Quindi si schiarisce a 351°, un grado e mezzo verso il
+    // mattone: 4,7:1 sul fondo pagina, e resta riconoscibile come parente del
+    // porpora invece di sembrare un rosso qualunque.
+    brand500 = Color(0xFFE05C70),
+    brand600 = Color(0xFFE77989),
     live500 = Color(0xFF2FC98A),
     live600 = Color(0xFF47D69A),
     warn50 = Color(0xFF2A2113),

@@ -29,10 +29,11 @@ RADICE = pathlib.Path(__file__).resolve().parent.parent
 RES = RADICE / "app/src/main/res"
 GRAFICA = RADICE / "grafica"
 
-# Rosso ATAC: e' brand500 della palette chiara, lo stesso accento che l'app
-# usa dentro. L'illustrazione ha un rosso piu' tenue (#D8624A, il sole), ma a
-# 48dp perde contro la carrozzeria crema.
-ROSSO = (0xC4, 0x16, 0x1C, 255)
+# Porpora istituzionale: Pantone 202 C dello stemma di Roma, cioe' brand500
+# della palette chiara. Deve restare uguale a sfondo_icona in
+# res/values/colori.xml, altrimenti il disco dello splash e il fondo
+# dell'icona sono di due rossi diversi.
+PORPORA = (0x8E, 0x00, 0x1C, 255)
 
 # Densita' e fattore rispetto a mdpi.
 DENSITA = {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}
@@ -148,13 +149,13 @@ def main():
     print("icona splash:")
     for nome, f in DENSITA.items():
         lato = round(288 * f)
-        scrivi(su_tela(bus, lato, 0.58 * 192 / 288, disco=(192 / 288, ROSSO)),
+        scrivi(su_tela(bus, lato, 0.58 * 192 / 288, disco=(192 / 288, PORPORA)),
                RES / f"drawable-{nome}/ic_splash.png")
 
     # ---- ICONA PER IL PLAY STORE ---------------------------------------
     # 512x512, senza trasparenza e senza maschera: la applica il negozio.
     print("play store:")
-    scrivi(su_tela(bus, 512, 0.58 * 0.667, sfondo=ROSSO).convert("RGB"),
+    scrivi(su_tela(bus, 512, 0.58 * 0.667, sfondo=PORPORA).convert("RGB"),
            GRAFICA / "icona-play-512.png")
 
 
