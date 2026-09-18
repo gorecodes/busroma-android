@@ -1,5 +1,6 @@
 package dev.disagio.busroma.mappa
 
+import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +67,28 @@ fun MappaItinerario(geometria: GeometriaItinerario, modifier: Modifier = Modifie
             onCreate(null)
             onStart()
             onResume()
+            // LA MAPPA STA DENTRO UNA COLONNA CHE SCORRE, e senza questo il
+            // trascinamento se lo prende il genitore: la mappa sembra fare
+            // resistenza, si sposta a scatti o non si sposta affatto.
+            //
+            // Appena un dito tocca la mappa si chiede a chi sta sopra di non
+            // intercettare, e lo si rilascia quando il dito si alza. Compose
+            // rispetta requestDisallowInterceptTouchEvent sulle viste
+            // ospitate, quindi lo scorrimento della pagina si ferma per la
+            // durata del gesto e riprende subito dopo.
+            //
+            // Si restituisce false: il gesto deve comunque arrivare alla
+            // mappa, questo ascoltatore serve solo a togliere di mezzo il
+            // genitore.
+            setOnTouchListener { vista, evento ->
+                when (evento.actionMasked) {
+                    MotionEvent.ACTION_DOWN ->
+                        vista.parent?.requestDisallowInterceptTouchEvent(true)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                        vista.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                false
+            }
         }
     }
     var mappa by remember { mutableStateOf<MapLibreMap?>(null) }

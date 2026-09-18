@@ -1,13 +1,13 @@
 package dev.disagio.busroma.mappa
 
 import dev.disagio.busroma.dati.Api
-import dev.disagio.busroma.dati.FermataLinea
 import dev.disagio.busroma.dati.OpzioneItinerario
 import dev.disagio.busroma.dati.TrattaAPiedi
 import dev.disagio.busroma.dati.TrattaInMezzo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sqrt
 
 /** Un pezzo di itinerario da disegnare: o si viaggia, o si cammina. */
 sealed interface Tratto {
@@ -97,7 +97,7 @@ suspend fun geometriaDi(
                 val a = coordinate[tratta.to.stopId]
                 // Il tracciato della linea se si trova, altrimenti la retta
                 // fra i due capi: il percorso e' meno bello ma il viaggio c'e'.
-                val punti = percorsoDi(tratta)?.punti
+                val punti = percorsoDi(tratta)
                     ?: if (da != null && a != null) {
                         listOf(listOf(da.second, da.first), listOf(a.second, a.first))
                     } else {
@@ -139,41 +139,97 @@ suspend fun geometriaDi(
     )
 }
 
-private class Percorso(val punti: List<List<Double>>, val fermate: List<FermataLinea>)
+/**
+ * Quanto può stare lontana una fermata dal tracciato perché l'aggancio valga.
+ *
+ * MISURATO, non scelto a occhio. Su dodici tratte di itinerari veri, dieci
+ * agganciano a zero metri: il tracciato passa esattamente per la fermata.
+ * Fanno eccezione i nodi di scambio, dove la fermata sta in una corsia
+ * diversa da quella del percorso rappresentativo — la 96 a OSTIENSE-PIRAMIDE
+ * sta a 171 metri, ed è un aggancio buono. Un aggancio cattivo si è visto a
+ * 566 metri su una 8BUS. Duecentocinquanta separa i due casi con margine da
+ * tutte e due le parti.
+ */
+private const val AGGANCIO_MAX_M = 250.0
 
 /**
- * Il pezzo di linea effettivamente percorso da una tratta.
+ * Il tratto agganciato non può essere più corto della linea d'aria fra le due
+ * fermate, né molto più lungo.
  *
- * Si preferisce il TRACCIATO alle fermate quando c'è: una polilinea che passa
- * per le sole fermate taglia le curve e su una linea di superficie si vede
- * che va dritta dentro gli isolati. Il tracciato invece segue le strade, e
- * ritagliarlo fra due fermate costa una ricerca del punto più vicino.
+ * Il primo controllo è quello che smaschera gli agganci sbagliati: un
+ * percorso stradale più corto della distanza in linea d'aria è impossibile, e
+ * infatti l'unico aggancio cattivo del campione aveva rapporto 0,84. Il
+ * secondo tiene fuori i giri larghi: il massimo osservato su un aggancio
+ * buono è 1,95, la 982 che fa un anello, quindi tre è largo ma non scemo.
  */
-private suspend fun percorsoDi(tratta: TrattaInMezzo): Percorso? {
-    for (verso in intArrayOf(0, 1)) {
-        val r = try {
-            Api.fermateLinea(tratta.shortName, verso)
-        } catch (e: Exception) {
-            continue
-        }
-        val ids = r.stops.map { it.stopId }
-        val i = ids.indexOf(tratta.from.stopId)
-        val j = ids.indexOf(tratta.to.stopId)
-        // Il verso giusto è quello dove si sale PRIMA di scendere.
-        if (i < 0 || j < 0 || i >= j) continue
+private const val RAPPORTO_MIN = 0.9
+private const val RAPPORTO_MAX = 3.0
 
-        val fermateTratta = r.stops.subList(i, j + 1)
-        val shape = r.shape?.coordinates
-        val punti = if (shape != null && shape.size > 1) {
-            val a = indicePiuVicino(shape, r.stops[i].lat, r.stops[i].lon)
-            val b = indicePiuVicino(shape, r.stops[j].lat, r.stops[j].lon)
-            if (a <= b) shape.subList(a, b + 1) else shape.subList(b, a + 1).reversed()
-        } else {
-            fermateTratta.map { listOf(it.lon, it.lat) }
+/**
+ * Il pezzo di tracciato percorso da una tratta, o null.
+ *
+ * SI AGGANCIA PER GEOMETRIA, NON PER IDENTIFICATIVO. La prima versione
+ * cercava le due fermate dentro l'elenco della linea e teneva il verso in cui
+ * la salita veniva prima della discesa. Funzionava, tranne sulle corse
+ * VARIANTE: il percorso della linea è quello di una corsa rappresentativa per
+ * verso, e sulla 96 le fermate OSTIENSE-PIRAMIDE e PACINOTTI non compaiono in
+ * nessuno dei due. Lì la tratta finiva disegnata come una retta, che è quello
+ * che si vedeva sullo schermo.
+ *
+ * Ora che il server manda le coordinate, il tracciato si aggancia ai PUNTI:
+ * si cerca il punto del tracciato più vicino alla fermata di salita e quello
+ * più vicino alla discesa, e se sono entrambi abbastanza vicini si taglia fra
+ * i due. Una variante che devia per un tratto ma per il resto segue la linea
+ * si aggancia lo stesso, ed è il caso normale.
+ */
+private suspend fun percorsoDi(tratta: TrattaInMezzo): List<List<Double>>? {
+    val daLat = tratta.from.lat ?: return null
+    val daLon = tratta.from.lon ?: return null
+    val aLat = tratta.to.lat ?: return null
+    val aLon = tratta.to.lon ?: return null
+
+    for (verso in intArrayOf(0, 1)) {
+        val shape = try {
+            Api.fermateLinea(tratta.shortName, verso).shape?.coordinates
+        } catch (e: Exception) {
+            null
+        } ?: continue
+        if (shape.size < 2) continue
+
+        val i = indicePiuVicino(shape, daLat, daLon)
+        val j = indicePiuVicino(shape, aLat, aLon)
+        // Il verso giusto e' quello dove si sale PRIMA di scendere.
+        if (i >= j) continue
+        if (distanzaM(shape[i][1], shape[i][0], daLat, daLon) > AGGANCIO_MAX_M) continue
+        if (distanzaM(shape[j][1], shape[j][0], aLat, aLon) > AGGANCIO_MAX_M) continue
+
+        val retta = distanzaM(daLat, daLon, aLat, aLon)
+        if (retta > 1.0) {
+            var lungo = 0.0
+            for (k in i until j) {
+                lungo += distanzaM(shape[k][1], shape[k][0], shape[k + 1][1], shape[k + 1][0])
+            }
+            val rapporto = lungo / retta
+            if (rapporto < RAPPORTO_MIN || rapporto > RAPPORTO_MAX) continue
         }
-        return Percorso(punti, fermateTratta)
+
+        // I capi esatti in testa e in coda: il punto del tracciato piu' vicino
+        // sta comunque a qualche metro dalla fermata, e senza questo la linea
+        // non tocca il pallino che le sta accanto.
+        return buildList {
+            add(listOf(daLon, daLat))
+            addAll(shape.subList(i, j + 1))
+            add(listOf(aLon, aLat))
+        }
     }
     return null
+}
+
+/** Distanza in metri, piana: alle distanze di una linea urbana basta. */
+private fun distanzaM(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val dLat = (lat1 - lat2) * 111_320.0
+    val dLon = (lon1 - lon2) * 111_320.0 * cos(Math.toRadians((lat1 + lat2) / 2))
+    return sqrt(dLat * dLat + dLon * dLon)
 }
 
 /**
