@@ -50,10 +50,27 @@ import kotlinx.coroutines.launch
  * La sezione vive sotto i preferiti nella schermata iniziale, non in una
  * pagina a parte: sono le due cose che servono senza digitare niente.
  */
+/**
+ * Entrambi i permessi insieme: e' l'unico modo in cui Android mostra la scelta
+ * fra "Precisa" e "Approssimata". Chiedendo solo quella fine il sistema non
+ * offrirebbe l'alternativa; chiedendo solo l'approssimata la precisa non si
+ * potrebbe piu' ottenere.
+ */
+private val PERMESSI = arrayOf(
+    Manifest.permission.ACCESS_FINE_LOCATION,
+    Manifest.permission.ACCESS_COARSE_LOCATION,
+)
+
 private sealed interface StatoVicine {
     object Riposo : StatoVicine
     object Attesa : StatoVicine
-    data class Trovate(val fermate: List<FermataVicina>) : StatoVicine
+    data class Trovate(
+        val fermate: List<FermataVicina>,
+        /** Metri di incertezza della posizione usata, se noti. */
+        val incertezzaM: Float? = null,
+        /** Minuti di età della posizione usata. */
+        val etaMin: Int = 0,
+    ) : StatoVicine
     data class Errore(val messaggio: String) : StatoVicine
 }
 
@@ -81,17 +98,26 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                 return@launch
             }
             stato = try {
-                StatoVicine.Trovate(Api.fermateVicine(pos.latitude, pos.longitude).stops)
+                StatoVicine.Trovate(
+                    fermate = Api.fermateVicine(pos.latitude, pos.longitude).stops,
+                    incertezzaM = if (pos.hasAccuracy()) pos.accuracy else null,
+                    etaMin = ((System.currentTimeMillis() - pos.time) / 60_000L)
+                        .coerceAtLeast(0L).toInt(),
+                )
             } catch (e: Exception) {
                 StatoVicine.Errore("Le fermate vicine non arrivano.")
             }
         }
     }
 
+    // Si chiedono ENTRAMBI i permessi insieme: e' l'unico modo in cui Android
+    // mostra all'utente la scelta fra "Precisa" e "Approssimata". Chiedendo
+    // solo quella fine il sistema non offrirebbe l'alternativa, e chiedendo
+    // solo l'approssimata non si potrebbe mai ottenere la precisa.
     val richiesta = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { concesso ->
-        if (concesso) {
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { esiti ->
+        if (esiti.values.any { it }) {
             carica()
         } else {
             stato = StatoVicine.Errore(
@@ -114,7 +140,7 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                 if (Posizione.permessoConcesso(contesto)) {
                     carica()
                 } else {
-                    richiesta.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    richiesta.launch(PERMESSI)
                 }
             }
 
@@ -126,7 +152,7 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                     if (Posizione.permessoConcesso(contesto)) {
                         carica()
                     } else {
-                        richiesta.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        richiesta.launch(PERMESSI)
                     }
                 }
             }
@@ -135,6 +161,32 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                 Nota("Nessuna fermata nei paraggi. Complimenti, sei nel nulla.", c)
             } else {
                 Column {
+                    // SI DICHIARA L'INCERTEZZA quando e' grande come il raggio
+                    // che stiamo interrogando: mostrare "271 m" calcolati su
+                    // una posizione sbagliata di un chilometro sarebbe una
+                    // precisione finta, e l'utente non ha modo di accorgersene.
+                    val incerta = s.incertezzaM != null &&
+                        s.incertezzaM > Posizione.INCERTEZZA_ACCETTABILE_M
+                    val vecchia = s.etaMin >= 5
+                    val avviso = when {
+                        incerta && vecchia ->
+                            "Posizione di ${s.etaMin} min fa e approssimata di circa " +
+                                "${s.incertezzaM!!.toInt()} m."
+                        incerta ->
+                            "Posizione approssimata di circa ${s.incertezzaM!!.toInt()} m: " +
+                                "l'ordine pu\u00f2 non essere esatto."
+                        vecchia ->
+                            "Posizione di ${s.etaMin} min fa: se ti sei spostato, ricarica."
+                        else -> null
+                    }
+                    if (avviso != null) {
+                        Text(
+                            text = avviso,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.warn700,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                     s.fermate.take(8).forEach { f ->
                         RigaVicina(f, c) { apri(f.stopId) }
                         HorizontalDivider(color = c.neutral200)

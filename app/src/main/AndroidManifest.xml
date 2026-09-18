@@ -5,12 +5,20 @@
          con un errore che non nomina il permesso. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Posizione: solo APPROSSIMATA. Per sapere quali fermate hai intorno
-         bastano un centinaio di metri di precisione, e chiedere quella fine
-         sarebbe chiedere piu' del necessario - cosa che l'utente vede nella
-         schermata del permesso e che il Play Store chiede di giustificare.
-         Non e' obbligatoria: l'app funziona interamente con ricerca e
-         preferiti, quindi required="false". -->
+    <!-- Posizione PRECISA, e serve davvero.
+         L'approssimata di Android non e' semplicemente meno accurata: e'
+         agganciata a un'area di circa tre chilometri quadrati. Per una lista
+         di fermate entro trecento metri quel dato non e' meno buono, e'
+         falso - e falso in modo verosimile, perche' la schermata mostrerebbe
+         distanze precise al metro calcolate su una posizione sbagliata di un
+         chilometro.
+         Si dichiara anche l'approssimata perche' Android lo richiede per
+         mostrare all'utente la scelta fra "Precisa" e "Approssimata": se
+         l'utente concede solo la seconda l'app continua a funzionare, ma lo
+         dice invece di far finta.
+         Nessuna delle due e' obbligatoria: ricerca e preferiti funzionano
+         senza, quindi required="false" sulla funzionalita' hardware. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
 
