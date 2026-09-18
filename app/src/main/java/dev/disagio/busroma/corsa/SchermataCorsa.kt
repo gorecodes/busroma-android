@@ -42,6 +42,7 @@ import dev.disagio.busroma.dati.FermataCorsa
 import dev.disagio.busroma.dati.Linea
 import dev.disagio.busroma.dati.MezzoCorsa
 import dev.disagio.busroma.ui.AzioniIntestazione
+import androidx.compose.ui.draw.clip
 import dev.disagio.busroma.mappa.MappaPercorso
 import dev.disagio.busroma.mappa.PuntoFermata
 import dev.disagio.busroma.mappa.PuntoMezzo
@@ -138,7 +139,13 @@ fun SchermataCorsa(
         // fermate che e' il pezzo forte di questa schermata.
         if (fermate.isNotEmpty() || mezzo != null) {
             Spacer(Modifier.height(12.dp))
-            Box(Modifier.fillMaxWidth().height(220.dp)) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(220.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+            ) {
                 MappaPercorso(
                     fermate = fermate
                         // Il feed non copre sempre tutte le fermate con le

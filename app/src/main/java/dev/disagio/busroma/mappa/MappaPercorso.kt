@@ -76,15 +76,12 @@ data class PuntoMezzo(
 private const val SRC_TRACCIATO = "tracciato"
 private const val SRC_FERMATE = "fermate"
 private const val SRC_MEZZI = "mezzi"
-private const val SRC_IO = "io"
 private const val IMG_FRECCIA = "freccia-mezzo"
 
 /** Basalto: il colore delle linee di superficie, che nel GTFS non ne hanno uno. */
 private const val BASALTO = "#1B2027"
 private const val VERDE_VIVO = "#00875A"
 private const val INCHIOSTRO = "#10141A"
-/** L'azzurro con cui ogni mappa del mondo dice "sei qui". Non si reinventa. */
-private const val AZZURRO_IO = "#1A73E8"
 
 /**
  * La mappa di un percorso: tracciato, fermate e mezzi in tempo reale.
@@ -131,9 +128,6 @@ fun MappaPercorso(
     var mappa by remember { mutableStateOf<MapLibreMap?>(null) }
     var stile by remember { mutableStateOf<Style?>(null) }
     var inquadrata by remember { mutableStateOf(false) }
-    var miaPosizione by remember { mutableStateOf<LatLng?>(null) }
-    var cercandoMe by remember { mutableStateOf(false) }
-    var permessoNegato by remember { mutableStateOf(false) }
 
     val colore = coloreLinea
         ?.takeIf { it.isNotBlank() }
@@ -223,24 +217,7 @@ fun MappaPercorso(
                         PropertyFactory.iconSize(0.9f),
                     ),
                 )
-                s.addSource(GeoJsonSource(SRC_IO))
-                // Alone e pallino, nell'ordine: l'alone da solo sembra una
-                // macchia, il pallino da solo si perde sulle strade chiare.
-                s.addLayer(
-                    CircleLayer("io-alone", SRC_IO).withProperties(
-                        PropertyFactory.circleRadius(16f),
-                        PropertyFactory.circleColor(AZZURRO_IO),
-                        PropertyFactory.circleOpacity(0.18f),
-                    ),
-                )
-                s.addLayer(
-                    CircleLayer("io-pallino", SRC_IO).withProperties(
-                        PropertyFactory.circleRadius(6.5f),
-                        PropertyFactory.circleColor(AZZURRO_IO),
-                        PropertyFactory.circleStrokeColor("#ffffff"),
-                        PropertyFactory.circleStrokeWidth(2.5f),
-                    ),
-                )
+                aggiungiStratiPosizione(s)
                 stile = s
             }
 
@@ -353,85 +330,12 @@ fun MappaPercorso(
         ultime.keys.retainAll(mezzi.map { it.id }.toSet())
     }
 
-    LaunchedEffect(stile, miaPosizione) {
-        val s = stile ?: return@LaunchedEffect
-        val p = miaPosizione
-        s.getSourceAs<GeoJsonSource>(SRC_IO)?.setGeoJson(
-            if (p == null) FeatureCollection.fromFeatures(emptyList())
-            else FeatureCollection.fromFeatures(
-                listOf(Feature.fromGeometry(Point.fromLngLat(p.longitude, p.latitude))),
-            ),
-        )
-    }
-
-    // SI MOSTRA DA SOLA SE IL PERMESSO C'E' GIA', senza muovere la camera.
-    // "Non si vede dove sto io" era vero anche con il permesso concesso: la
-    // mappa non chiedeva mai la posizione. Mostrarla e basta risponde alla
-    // domanda; spostare l'inquadratura senza che nessuno l'abbia chiesto
-    // strapperebbe via il tracciato che si stava guardando.
-    LaunchedEffect(stile) {
-        if (stile != null && Posizione.permessoConcesso(contesto)) {
-            Posizione.corrente(contesto)?.let { miaPosizione = LatLng(it.latitude, it.longitude) }
-        }
-    }
-
-    val scope = rememberCoroutineScope()
-    fun cercami() {
-        scope.launch {
-            cercandoMe = true
-            val l = Posizione.corrente(contesto)
-            cercandoMe = false
-            if (l != null) {
-                val p = LatLng(l.latitude, l.longitude)
-                miaPosizione = p
-                // QUI la camera si muove: l'ha chiesto chi ha premuto.
-                mappa?.animateCamera(CameraUpdateFactory.newLatLngZoom(p, 15.0), 500)
-            }
-        }
-    }
-
-    val richiesta = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { esiti ->
-        if (esiti.values.any { it }) {
-            permessoNegato = false
-            cercami()
-        } else {
-            permessoNegato = true
-        }
-    }
-
     Box(modifier) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
-
-        // Il tasto "dove sono": in basso a destra, dove lo mette ogni mappa.
-        Box(
-            Modifier
-                .align(Alignment.BottomEnd)
-                .padding(10.dp)
-                .size(40.dp)
-                .clip(RoundedCornerShape(50))
-                .background(Color.White.copy(alpha = 0.92f))
-                .clickable {
-                    if (Posizione.permessoConcesso(contesto)) cercami()
-                    else richiesta.launch(
-                        arrayOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                        ),
-                    )
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Spillo(
-                if (permessoNegato) Color(0xFF9AA0A6)
-                else if (cercandoMe) Color(0xFF9AA0A6)
-                else Color(0xFF1A73E8),
-                Modifier.size(20.dp),
-            )
-        }
+        BoxScopeDoveSono(mappa, stile, Modifier.align(Alignment.BottomEnd))
     }
 }
+
 
 /**
  * La freccia del mezzo, disegnata in memoria.

@@ -62,6 +62,12 @@ suspend fun geometriaDi(
     opzione: OpzioneItinerario,
     partenza: Pair<Double, Double>?,
     arrivo: Pair<Double, Double>?,
+    /**
+     * Il colore di ogni tratta, deciso da [coloriTratte]. Arriva da fuori
+     * perche' lo stesso colore serve anche all'elenco sotto la mappa: se lo
+     * decidesse qui, le due cose divergerebbero al primo cambio.
+     */
+    colori: Map<Int, String>,
 ): GeometriaItinerario = withContext(Dispatchers.IO) {
     // Le coordinate di ogni fermata nominata dall'itinerario, dritte dal
     // server. Le fermate senza coordinate si saltano: metterle a zero le
@@ -89,7 +95,7 @@ suspend fun geometriaDi(
     var inMezzo = 0
     var disegnate = 0
 
-    opzione.legs.forEach { tratta ->
+    opzione.legs.forEachIndexed { indice, tratta ->
         when (tratta) {
             is TrattaInMezzo -> {
                 inMezzo++
@@ -104,7 +110,7 @@ suspend fun geometriaDi(
                         null
                     }
                 if (punti != null) {
-                    tratti += Tratto.Viaggio(punti, tratta.color)
+                    tratti += Tratto.Viaggio(punti, colori[indice])
                     disegnate++
                 }
                 da?.let {

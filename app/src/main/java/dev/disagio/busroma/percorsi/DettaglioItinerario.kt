@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import dev.disagio.busroma.mappa.GeometriaItinerario
 import dev.disagio.busroma.mappa.MappaItinerario
+import dev.disagio.busroma.mappa.coloriTratte
 import dev.disagio.busroma.mappa.geometriaDi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,10 +82,15 @@ fun DettaglioItinerario(
     // l'elenco: servono due chiamate per ogni tratta in mezzo, e farle per
     // tutte e cinque le proposte significherebbe una ventina di richieste per
     // disegnarne una sola.
+    // Decisi una volta sola qui e passati a tutti e due: la mappa e l'elenco
+    // devono dire lo stesso colore per la stessa tratta, e due calcoli
+    // separati divergerebbero al primo cambio.
+    val colori = remember(opzione) { coloriTratte(opzione) }
+
     var geometria by remember(opzione) { mutableStateOf<GeometriaItinerario?>(null) }
     LaunchedEffect(opzione) {
         geometria = try {
-            geometriaDi(opzione, partenza, arrivo)
+            geometriaDi(opzione, partenza, arrivo, colori)
         } catch (e: Exception) {
             // La mappa e' un di piu': se non si costruisce, l'itinerario
             // scritto sotto risponde comunque alla domanda.
@@ -155,7 +161,7 @@ fun DettaglioItinerario(
             if (i > 0) HorizontalDivider(color = c.neutral200)
             when (tratta) {
                 is TrattaAPiedi -> TrattaPiedi(tratta, c)
-                is TrattaInMezzo -> TrattaMezzo(tratta, c, apriFermata)
+                is TrattaInMezzo -> TrattaMezzo(tratta, colori[i], c, apriFermata)
             }
         }
 
@@ -215,9 +221,23 @@ private fun TrattaPiedi(t: TrattaAPiedi, c: Palette) {
 }
 
 @Composable
-private fun TrattaMezzo(t: TrattaInMezzo, c: Palette, apriFermata: (String) -> Unit) {
+private fun TrattaMezzo(
+    t: TrattaInMezzo,
+    colore: String?,
+    c: Palette,
+    apriFermata: (String) -> Unit,
+) {
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-        DistintivoLinea(t.shortName, t.color, t.textColor, larghezza = COLONNA)
+        // La targhetta prende il colore della tratta sulla mappa, che per un
+        // autobus NON e' il colore della linea ma la legenda: serve a legare
+        // questa riga alla linea disegnata sopra. Il testo e' bianco perche'
+        // la tavolozza e' tutta di tinte scure, scelte apposta.
+        DistintivoLinea(
+            nome = t.shortName,
+            colore = colore ?: t.color,
+            coloreTesto = if (colore != null) "FFFFFF" else t.textColor,
+            larghezza = COLONNA,
+        )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(

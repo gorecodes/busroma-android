@@ -8,6 +8,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -148,6 +151,7 @@ fun MappaItinerario(geometria: GeometriaItinerario, modifier: Modifier = Modifie
                         PropertyFactory.circleStrokeWidth(2.5f),
                     ),
                 )
+                aggiungiStratiPosizione(s)
                 stile = s
             }
         }
@@ -211,5 +215,8 @@ fun MappaItinerario(geometria: GeometriaItinerario, modifier: Modifier = Modifie
         }
     }
 
-    AndroidView(factory = { mapView }, modifier = modifier)
+    Box(modifier) {
+        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+        BoxScopeDoveSono(mappa, stile, Modifier.align(Alignment.BottomEnd))
+    }
 }

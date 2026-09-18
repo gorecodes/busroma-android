@@ -174,7 +174,17 @@ fun SchermataLinea(
             // all'elenco, la mappa sembrava un ritaglio finito li' per errore
             // invece di un blocco a se'.
             Spacer(Modifier.height(12.dp))
-            Box(Modifier.fillMaxWidth().height(240.dp)) {
+            // Margine laterale e angoli tondi come sulla mappa del
+            // pianificatore: a tutta larghezza sembrava incollata ai bordi
+            // dello schermo mentre tutto il resto della pagina respira di
+            // sedici punti.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(240.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+            ) {
                 MappaPercorso(
                     fermate = fermate.map {
                         PuntoFermata(it.stopId, it.name, it.code, it.lat, it.lon)
