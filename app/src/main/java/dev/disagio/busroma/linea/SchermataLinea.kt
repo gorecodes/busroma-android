@@ -51,6 +51,10 @@ import dev.disagio.busroma.dati.Verso
 import dev.disagio.busroma.dati.etichettaTipo
 import dev.disagio.busroma.dati.nomeLinea
 import dev.disagio.busroma.ui.AzioniIntestazione
+import dev.disagio.busroma.mappa.MappaPercorso
+import dev.disagio.busroma.mappa.PuntoFermata
+import dev.disagio.busroma.mappa.PuntoMezzo
+import dev.disagio.busroma.ui.Croce
 import dev.disagio.busroma.ui.PuntaGiu
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
@@ -96,6 +100,10 @@ fun SchermataLinea(
     var versi by remember(routeId) { mutableStateOf<List<Verso>>(emptyList()) }
     var verso by remember(routeId) { mutableStateOf<Int?>(null) }
     var fermate by remember(routeId) { mutableStateOf<List<FermataLinea>>(emptyList()) }
+    /** Il tracciato per la mappa: 700 punti, si legge al cambio di verso. */
+    var tracciato by remember(routeId) { mutableStateOf<List<List<Double>>?>(null) }
+    /** La fermata toccata sulla mappa, per la schedina sopra la mappa. */
+    var toccata by remember(routeId) { mutableStateOf<PuntoFermata?>(null) }
     var mezzi by remember(routeId) { mutableStateOf<List<Mezzo>>(emptyList()) }
     var errore by remember(routeId) { mutableStateOf(false) }
 
@@ -119,10 +127,14 @@ fun SchermataLinea(
         // agganciato a una fermata che non c'e' piu'.
         apertaId = null
         val v = verso ?: return@LaunchedEffect
-        fermate = try {
-            Api.fermateLinea(routeId, v).stops
+        toccata = null
+        try {
+            val r = Api.fermateLinea(routeId, v)
+            fermate = r.stops
+            tracciato = r.shape?.coordinates
         } catch (e: Exception) {
-            emptyList()
+            fermate = emptyList()
+            tracciato = null
         }
     }
 
@@ -151,6 +163,41 @@ fun SchermataLinea(
 
         if (versi.size > 1 && verso != null) {
             SceltaVerso(versi, verso!!, c) { verso = it }
+        }
+
+        // LA MAPPA STA SOPRA L'ELENCO, come sul web: prima "dov'e' il mio
+        // autobus", poi la sequenza delle fermate. Altezza fissa perche' sotto
+        // c'e' una lista che scorre, e una mappa che scorre dentro una lista
+        // che scorre e' un litigio fra due gesti.
+        if (fermate.isNotEmpty()) {
+            // Respiro sopra e sotto: incollata al selettore del verso e
+            // all'elenco, la mappa sembrava un ritaglio finito li' per errore
+            // invece di un blocco a se'.
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(240.dp)) {
+                MappaPercorso(
+                    fermate = fermate.map {
+                        PuntoFermata(it.stopId, it.name, it.code, it.lat, it.lon)
+                    },
+                    mezzi = mezzi.map {
+                        PuntoMezzo(it.vehicleId, it.lat, it.lon, it.bearing)
+                    },
+                    tracciato = tracciato,
+                    coloreLinea = linea?.color,
+                    modifier = Modifier.fillMaxSize(),
+                    fermataToccata = { toccata = it },
+                )
+                toccata?.let { f ->
+                    SchedinaFermata(
+                        fermata = f,
+                        c = c,
+                        chiudi = { toccata = null },
+                        apri = { apriFermata(f.stopId) },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
         }
 
         when {
@@ -616,4 +663,69 @@ private fun Nota2(testo: String, c: Palette) {
         style = MaterialTheme.typography.bodySmall,
         color = c.neutral500,
     )
+}
+
+/**
+ * La scheda che compare toccando una fermata sulla mappa.
+ *
+ * Sul web e' un popup HTML dentro la tela della mappa, con un link da
+ * centrare col mouse. Qui e' una scheda vera: usa i caratteri e i colori
+ * dell'app, e il bersaglio per andare agli arrivi e' largo come un dito.
+ */
+@Composable
+private fun SchedinaFermata(
+    fermata: PuntoFermata,
+    c: Palette,
+    chiudi: () -> Unit,
+    apri: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier
+            .padding(8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(c.neutral50)
+            .border(1.dp, c.neutral300, RoundedCornerShape(6.dp))
+            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = fermata.nome,
+                style = stileNome,
+                fontWeight = FontWeight.SemiBold,
+                color = c.neutral900,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            fermata.palina?.let {
+                Text(
+                    text = "palina $it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.neutral500,
+                )
+            }
+        }
+        Text(
+            text = "Vedi arrivi",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = c.brand600,
+            modifier = Modifier
+                .heightIn(min = 44.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .clickable(onClick = apri)
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+        )
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable(onClick = chiudi),
+            contentAlignment = Alignment.Center,
+        ) {
+            Croce(c.neutral400, Modifier.size(14.dp))
+        }
+    }
 }

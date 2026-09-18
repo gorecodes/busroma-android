@@ -26,6 +26,15 @@ android {
     buildTypes {
         all {
             buildConfigField("String", "BASE_URL", "\"https://bus.disagio.dev\"")
+        // Chiave MapTiler, vuota per difetto: senza, la mappa ricade sulle
+        // tessere raster di OpenStreetMap come fa il web. Si passa dalla riga
+        // di comando o da gradle.properties senza finire nel repository:
+        //   ./gradlew assembleRelease -PmaptilerKey=xxxx
+        buildConfigField(
+            "String",
+            "MAPTILER_KEY",
+            "\"${project.findProperty("maptilerKey") ?: ""}\"",
+        )
         }
         release {
             isMinifyEnabled = false
@@ -63,6 +72,13 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
+
+    // MAPLIBRE NATIVE, la controparte esatta di maplibre-gl del web: consuma
+    // lo stesso stile JSON, quindi le due mappe restano una cosa sola invece
+    // di due implementazioni da tenere allineate a mano. L'alternativa erano
+    // le mappe di Google: chiave, fatturazione, e un aspetto che non c'entra
+    // niente col resto.
+    implementation(libs.maplibre.android)
 
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)

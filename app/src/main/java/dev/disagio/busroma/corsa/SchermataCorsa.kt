@@ -42,6 +42,9 @@ import dev.disagio.busroma.dati.FermataCorsa
 import dev.disagio.busroma.dati.Linea
 import dev.disagio.busroma.dati.MezzoCorsa
 import dev.disagio.busroma.ui.AzioniIntestazione
+import dev.disagio.busroma.mappa.MappaPercorso
+import dev.disagio.busroma.mappa.PuntoFermata
+import dev.disagio.busroma.mappa.PuntoMezzo
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
@@ -127,6 +130,33 @@ fun SchermataCorsa(
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
         Intestazione(linea, mezzo, destinazione, adesso, c, apriAvvisi)
+
+        // La mappa della corsa: SENZA TRACCIATO, come sul web. Qui interessa
+        // dove sta il mezzo adesso rispetto alle fermate che gli restano, e il
+        // filo del percorso lo si ha nella pagina della linea. Piu' bassa che
+        // la' (220 contro 240) perche' sotto c'e' una lista di cinquanta
+        // fermate che e' il pezzo forte di questa schermata.
+        if (fermate.isNotEmpty() || mezzo != null) {
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(220.dp)) {
+                MappaPercorso(
+                    fermate = fermate
+                        // Il feed non copre sempre tutte le fermate con le
+                        // coordinate: quelle a zero finirebbero nel Golfo di
+                        // Guinea e l'inquadratura comprenderebbe mezzo mondo.
+                        .filter { it.lat != 0.0 || it.lon != 0.0 }
+                        .map { PuntoFermata(it.stopId, it.name, it.code, it.lat, it.lon) },
+                    mezzi = mezzo?.let {
+                        listOf(PuntoMezzo(it.vehicleId, it.lat, it.lon, it.bearing))
+                    } ?: emptyList(),
+                    tracciato = null,
+                    coloreLinea = linea?.color,
+                    modifier = Modifier.fillMaxSize(),
+                    fermataToccata = { apriFermata(it.stopId) },
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+        }
 
         when {
             !caricata -> Nota("Carico la corsa...", c)

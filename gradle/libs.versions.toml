@@ -6,6 +6,7 @@ composeBom = "2026.09.00"
 coreKtx = "1.19.0"
 activityCompose = "1.13.0"
 splashscreen = "1.2.0"
+maplibre = "11.11.0"
 lifecycle = "2.11.0"
 ktor = "3.6.0"
 serialization = "1.11.0"
@@ -16,6 +17,7 @@ datastore = "1.2.1"
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+maplibre-android = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 
 # Il BOM allinea tutte le librerie Compose fra loro: le singole dipendenze

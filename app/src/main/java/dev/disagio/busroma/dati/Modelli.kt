@@ -191,6 +191,29 @@ data class Verso(
 @Serializable
 data class RispostaFermateLinea(
     val stops: List<FermataLinea> = emptyList(),
+    /**
+     * Il tracciato della linea come GeoJSON LineString, per la mappa.
+     *
+     * Nullabile perche' non tutte le linee hanno una shape nel GTFS, e
+     * perche' l'app funzionava senza mappa: un client vecchio che non conosce
+     * questo campo lo ignora, e uno nuovo su una linea senza tracciato mostra
+     * solo le fermate. Sono 700 punti per la 982, quindi si legge una volta
+     * al cambio di verso e non a ogni disegno.
+     */
+    val shape: Tracciato? = null,
+)
+
+/**
+ * Un GeoJSON LineString ridotto all'osso.
+ *
+ * `coordinates` e' una lista di coppie [lon, lat] - in QUEST'ORDINE, che e'
+ * l'ordine di GeoJSON e l'inverso di come si dicono le coordinate a voce.
+ * Sbagliarlo non da' errore, mette la linea in Somalia.
+ */
+@Serializable
+data class Tracciato(
+    val type: String = "LineString",
+    val coordinates: List<List<Double>> = emptyList(),
 )
 
 @Serializable
