@@ -292,6 +292,17 @@ fun MappaPercorso(
         )
 
         if (!inquadrata) {
+            // SI ASPETTA CHE LA VISTA ABBIA UNA DIMENSIONE. Inquadrare su
+            // un viewport ancora 0x0 da' uno zoom senza senso: e' lo stesso
+            // difetto che sul web e' documentato in RouteMap, dove al primo
+            // disegno il contenitore puo' essere ancora alto zero. Qui capita
+            // quando la geometria e' pronta prima che Compose abbia misurato
+            // la MapView.
+            var attese = 0
+            while ((mapView.width == 0 || mapView.height == 0) && attese < 40) {
+                delay(50)
+                attese++
+            }
             val punti = buildList {
                 tracciato?.forEach { add(LatLng(it[1], it[0])) }
                 fermate.forEach { add(LatLng(it.lat, it.lon)) }

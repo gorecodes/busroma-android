@@ -28,9 +28,14 @@ data class GeometriaItinerario(
     /**
      * Vero solo se OGNI tratta in mezzo ha la sua geometria.
      *
-     * Serve a non mentire. Una mappa che disegna la metro e salta l'autobus
-     * non e' una mappa parziale, e' una mappa sbagliata: sembra che il
-     * viaggio finisca a Piramide. Meglio non mostrarla.
+     * Serve a non mentire: una mappa che disegna la metro e salta l'autobus
+     * non e' parziale, e' sbagliata - sembra che il viaggio finisca a
+     * Piramide.
+     *
+     * Da quando le coordinate arrivano dal server e' quasi sempre vera,
+     * perche' il ripiego sulla retta non puo' fallire. Resta falsa solo
+     * contro un server vecchio che non le manda, e in quel caso la mappa non
+     * compare invece di comparire a meta'.
      */
     val completa: Boolean = false,
 )
@@ -38,72 +43,84 @@ data class GeometriaItinerario(
 /**
  * Trasforma un itinerario in qualcosa che si possa disegnare su una mappa.
  *
- * SERVE PERCHÉ /api/plan NON DÀ LE COORDINATE. Restituisce le fermate come
- * identificativo, nome e palina: abbastanza per scrivere un elenco, niente
- * per disegnare. La prima idea era chiedere le fermate della corsa a
- * /api/trips, ma quell'endpoint dipende dal tempo reale e con il feed ATAC
- * a terra torna vuoto — cioè proprio quando serve funziona meno.
+ * LE COORDINATE ORA ARRIVANO DAL SERVER. Prima /api/plan restituiva le
+ * fermate come identificativo, nome e palina, e nessun altro endpoint sapeva
+ * tradurre un identificativo in coordinate: /api/stops/search non le espone,
+ * /api/trips/:id dipende dal tempo reale e col feed ATAC fermo torna vuoto.
+ * Toccava indovinarle cercando le due fermate dentro il percorso della linea,
+ * e sulle corse VARIANTE non si trovavano - sulla 96, OSTIENSE-PIRAMIDE e
+ * PACINOTTI non compaiono in nessuno dei due versi pur essendo servite.
+ * Tre righe sul server hanno chiuso il problema alla radice.
  *
- * Allora si passa dal percorso della LINEA, che è dato di tabella e c'è
- * sempre: per ogni tratta in mezzo si chiedono le fermate della linea nei due
- * versi e si tiene quello in cui la fermata di salita viene PRIMA di quella
- * di discesa. È un test che non può sbagliare - verificato sulla MEB, dove il
- * verso 0 non contiene nessuna delle due fermate, e sulla 23, dove il verso 1
- * non le contiene.
- *
- * Il nome della linea fa da identificativo di rotta perché a Roma coincidono
- * (`short_name` "23" sta su `route_id` "23", "MEB" su "MEB").
- *
- * IL LIMITE, E NON È RISOLVIBILE DA QUI. Il percorso della linea è quello di
- * una corsa rappresentativa per verso, mentre l'itinerario può usare una
- * VARIANTE che serve fermate diverse. Sulla 96, per dire, le fermate
- * OSTIENSE-PIRAMIDE e PACINOTTI non compaiono in nessuno dei due versi
- * restituiti, pur essendo servite dalla corsa proposta. In quei casi la
- * tratta resta senza geometria e `completa` diventa falso.
- *
- * La soluzione vera sta sul server: /api/plan interroga già la tabella
- * `stops`, basta che selezioni anche le coordinate e le rimandi dentro le
- * fermate dell'itinerario. Tre righe, puramente additive, e questo intero
- * file diventa inutile.
+ * Quel che resta qui e' solo il DISEGNO DEL PERCORSO, che e' un'altra cosa:
+ * fra due fermate ci si arriva per strada, e una retta taglierebbe dentro gli
+ * isolati. Quindi si cerca ancora il tracciato della linea per farci passare
+ * sopra il tratto, ma adesso e' un miglioramento e non una necessita': se non
+ * si trova, i due capi sono noti lo stesso e si unisce con una retta.
  */
 suspend fun geometriaDi(
     opzione: OpzioneItinerario,
     partenza: Pair<Double, Double>?,
     arrivo: Pair<Double, Double>?,
 ): GeometriaItinerario = withContext(Dispatchers.IO) {
-    val tratti = mutableListOf<Tratto>()
+    // Le coordinate di ogni fermata nominata dall'itinerario, dritte dal
+    // server. Le fermate senza coordinate si saltano: metterle a zero le
+    // spedirebbe nel Golfo di Guinea e l'inquadratura comprenderebbe mezzo
+    // pianeta.
     val coordinate = mutableMapOf<String, Pair<Double, Double>>()
     val fermate = mutableListOf<PuntoFermata>()
-
-    // Primo giro: le tratte in mezzo, che sono anche l'unica fonte di
-    // coordinate per le fermate.
-    val geometrie = mutableMapOf<Int, Tratto.Viaggio>()
-    opzione.legs.forEachIndexed { indice, tratta ->
-        if (tratta !is TrattaInMezzo) return@forEachIndexed
-        val percorso = percorsoDi(tratta) ?: return@forEachIndexed
-        geometrie[indice] = Tratto.Viaggio(percorso.punti, tratta.color)
-        percorso.fermate.forEach { f ->
-            coordinate[f.stopId] = f.lat to f.lon
-        }
-        fermate += PuntoFermata(
-            tratta.from.stopId, tratta.from.name, tratta.from.code,
-            coordinate[tratta.from.stopId]?.first ?: return@forEachIndexed,
-            coordinate[tratta.from.stopId]?.second ?: return@forEachIndexed,
-        )
-        coordinate[tratta.to.stopId]?.let { (lat, lon) ->
-            fermate += PuntoFermata(tratta.to.stopId, tratta.to.name, tratta.to.code, lat, lon)
+    fun registra(f: dev.disagio.busroma.dati.FermataItinerario?) {
+        val lat = f?.lat ?: return
+        val lon = f.lon ?: return
+        coordinate[f.stopId] = lat to lon
+    }
+    opzione.legs.forEach { t ->
+        when (t) {
+            is TrattaInMezzo -> {
+                registra(t.from); registra(t.to)
+            }
+            is TrattaAPiedi -> {
+                registra(t.from); registra(t.to)
+            }
         }
     }
 
-    // Secondo giro: nell'ordine dell'itinerario, con i tratti a piedi che
-    // chiudono i buchi fra un mezzo e l'altro.
-    opzione.legs.forEachIndexed { indice, tratta ->
+    val tratti = mutableListOf<Tratto>()
+    var inMezzo = 0
+    var disegnate = 0
+
+    opzione.legs.forEach { tratta ->
         when (tratta) {
-            is TrattaInMezzo -> geometrie[indice]?.let { tratti += it }
+            is TrattaInMezzo -> {
+                inMezzo++
+                val da = coordinate[tratta.from.stopId]
+                val a = coordinate[tratta.to.stopId]
+                // Il tracciato della linea se si trova, altrimenti la retta
+                // fra i due capi: il percorso e' meno bello ma il viaggio c'e'.
+                val punti = percorsoDi(tratta)?.punti
+                    ?: if (da != null && a != null) {
+                        listOf(listOf(da.second, da.first), listOf(a.second, a.first))
+                    } else {
+                        null
+                    }
+                if (punti != null) {
+                    tratti += Tratto.Viaggio(punti, tratta.color)
+                    disegnate++
+                }
+                da?.let {
+                    fermate += PuntoFermata(
+                        tratta.from.stopId, tratta.from.name, tratta.from.code, it.first, it.second,
+                    )
+                }
+                a?.let {
+                    fermate += PuntoFermata(
+                        tratta.to.stopId, tratta.to.name, tratta.to.code, it.first, it.second,
+                    )
+                }
+            }
             is TrattaAPiedi -> {
-                // Un capo nullo è la partenza o l'arrivo del viaggio: le sue
-                // coordinate le sa solo chi ha compilato il modulo, e arrivano
-                // da fuori.
+                // Un capo nullo e' la partenza o l'arrivo del viaggio: le sue
+                // coordinate le sa solo chi ha compilato il modulo.
                 val da = tratta.from?.let { coordinate[it.stopId] } ?: partenza
                 val a = tratta.to?.let { coordinate[it.stopId] } ?: arrivo
                 if (da != null && a != null) {
@@ -115,11 +132,10 @@ suspend fun geometriaDi(
         }
     }
 
-    val inMezzo = opzione.legs.count { it is TrattaInMezzo }
     GeometriaItinerario(
         tratti = tratti,
         fermate = fermate.distinctBy { it.stopId },
-        completa = inMezzo > 0 && geometrie.size == inMezzo,
+        completa = inMezzo > 0 && disegnate == inMezzo,
     )
 }
 

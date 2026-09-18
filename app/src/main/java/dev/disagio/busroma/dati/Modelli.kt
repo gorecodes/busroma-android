@@ -345,6 +345,17 @@ data class FermataItinerario(
     val stopId: String,
     val name: String,
     val code: String? = null,
+    /**
+     * Per disegnare l'itinerario sulla mappa.
+     *
+     * Nullabili perche' sono arrivate dopo: un'app installata prima del
+     * cambio sul server non le riceve, e una fermata che il server non
+     * trovasse in tabella le manderebbe nulle. Chi disegna deve saltare le
+     * fermate senza coordinate invece di metterle a zero, che sarebbe il
+     * Golfo di Guinea.
+     */
+    val lat: Double? = null,
+    val lon: Double? = null,
 )
 
 /**
