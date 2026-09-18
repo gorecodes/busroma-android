@@ -205,13 +205,22 @@ private fun SceltaOrdine(attuale: Ordine, c: Palette, scegli: (Ordine) -> Unit) 
                 text = o.etichetta,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (scelto) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (scelto) c.neutral50 else c.neutral600,
+                // Il chip scelto si riempie col colore d'identita' invece che
+                // d'inchiostro, per la stessa ragione della barra in basso:
+                // e' un controllo, non un dato.
+                //
+                // Il testo sopra e' lo SFONDO PAGINA e non neutral50: in scuro
+                // il 50 e' la superficie in rilievo, quasi chiara, e sul
+                // terracotta stava a 4,3:1. Lo sfondo pagina e' il piu' scuro
+                // dei due in scuro e il piu' chiaro in chiaro, quindi va bene
+                // in entrambi: 5,0:1 e 8,4:1.
+                color = if (scelto) c.neutral100 else c.neutral600,
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
-                    .background(if (scelto) c.neutral900 else Color.Transparent)
+                    .background(if (scelto) c.brand500 else Color.Transparent)
                     .border(
                         1.dp,
-                        if (scelto) c.neutral900 else c.neutral300,
+                        if (scelto) c.brand500 else c.neutral300,
                         RoundedCornerShape(3.dp),
                     )
                     .clickable { scegli(o) }

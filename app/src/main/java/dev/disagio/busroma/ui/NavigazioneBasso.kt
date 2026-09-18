@@ -59,7 +59,23 @@ fun NavigazioneBasso(
         ) {
             Sezione.entries.forEach { s ->
                 val scelta = s == attiva
-                val colore = if (scelta) c.neutral900 else c.neutral500
+                // LA VOCE ATTIVA PORTA IL COLORE D'IDENTITA', non l'inchiostro.
+                //
+                // Era neutral900, e la regola della palette — struttura
+                // acromatica, colore solo dove e' un dato — diceva di
+                // lasciarla cosi'. Ma quella regola, applicata alla lettera,
+                // lascia il colore di marca senza un posto dove stare: dopo
+                // essere passati al porpora istituzionale, nell'app non era
+                // cambiato niente di visibile perche' il porpora non compariva
+                // da nessuna parte. La barra e' CORNICE, non dato: qui il
+                // colore dice "sei in questa sezione", che e' esattamente il
+                // genere di cosa che l'identita' puo' dire.
+                //
+                // Si usa il gradino 600 e non il 500: sul fondo in rilievo
+                // della barra il 500 in scuro sta a 4,3:1, sotto la soglia per
+                // un'etichetta piccola. Il 600 sta a 5,2:1 in scuro e 11,6:1
+                // in chiaro.
+                val colore = if (scelta) c.brand600 else c.neutral500
                 Column(
                     Modifier
                         .weight(1f)
