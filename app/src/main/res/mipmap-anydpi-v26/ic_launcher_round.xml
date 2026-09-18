@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/sfondo_icona" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <!-- Icona a tinta unita per i temi di Android 13: e' la carrozzeria con i
+         vetri ritagliati, non la sagoma piena, che sarebbe una macchia. -->
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+</adaptive-icon>

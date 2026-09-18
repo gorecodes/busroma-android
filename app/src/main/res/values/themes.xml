@@ -3,4 +3,21 @@
     <!-- Tema minimo: l'aspetto lo decide Compose, questo serve solo a dare
          all'activity uno sfondo e a togliere la ActionBar di sistema. -->
     <style name="Theme.BusRoma" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Il tema con cui l'activity PARTE, e che al primo fotogramma utile
+         viene sostituito da quello sopra tramite postSplashScreenTheme.
+         Senza splash dichiarato, Android 12 e successivi ne mostrano uno
+         d'ufficio con l'icona del launcher su fondo bianco: lo splash non si
+         aggiunge, si arreda.
+
+         Lo sfondo segue il tema di sistema (c'e' values-night) perche' lo
+         splash lo disegna il sistema prima che il nostro codice possa
+         leggere la scelta dell'utente: al massimo puo' non corrispondere
+         quando il tema in-app e' forzato contro quello di sistema, e in quel
+         caso un fondo tenue e' meno violento di un lampo bianco. -->
+    <style name="Theme.BusRoma.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/sfondo_splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.BusRoma</item>
+    </style>
 </resources>

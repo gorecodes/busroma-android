@@ -49,6 +49,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    // Lo splash dichiarato dal tema: su Android 12+ lo gestisce il
+    // sistema, questa libreria lo porta indietro fino al minSdk.
+    implementation(libs.androidx.core.splashscreen)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)

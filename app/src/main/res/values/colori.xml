@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rosso ATAC, lo stesso brand500 della palette chiara in Colori.kt.
+         Se un giorno si volesse un'icona meno accesa, il sole
+         dell'illustrazione e' #D8624A: si cambia qui e si rigenera. -->
+    <color name="sfondo_icona">#C4161C</color>
+
+    <!-- Lo sfondo dello splash e' neutral100, cioe' lo sfondo pagina
+         dell'app: cosi' lo splash si dissolve nella prima schermata invece
+         di lampeggiare. Per lo stesso motivo c'e' la variante notte. -->
+    <color name="sfondo_splash">#EDEFEE</color>
+</resources>

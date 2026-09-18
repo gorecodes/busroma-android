@@ -24,12 +24,15 @@
 
     <application
         android:label="Bus Roma"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.BusRoma">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Bus Roma">
+            android:label="Bus Roma"
+            android:theme="@style/Theme.BusRoma.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

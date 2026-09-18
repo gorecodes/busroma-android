@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -14,6 +15,10 @@ import dev.disagio.busroma.ui.theme.TemaBusRoma
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // PRIMA di super.onCreate: e' la libreria di compatibilita' che
+        // sostituisce il tema dello splash con quello dell'app. Invertire le
+        // due righe lascia lo splash appiccicato allo schermo.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         // Disegna sotto le barre di sistema: su un telefono lo spazio in
         // altezza e' la risorsa scarsa.
