@@ -142,15 +142,26 @@ val PaletteScura = Palette(
     neutral700 = Color(0xFFC2CBD4),
     neutral900 = Color(0xFFD9E1E8), // inchiostro, fermato prima del bianco
     neutral950 = Color(0xFFE7EDF3),
-    brand50 = Color(0xFF2C1115),
-    // IL COMPROMESSO DELLO SCURO. Il porpora è scuro per natura: a #8e001c su
-    // fondo basalto il contrasto non arriva a 2:1, e come testo è illeggibile.
-    // Schiarendolo alla tinta esatta dello stemma (348°) diventa rosa
-    // confetto. Quindi si schiarisce a 351°, un grado e mezzo verso il
-    // mattone: 4,7:1 sul fondo pagina, e resta riconoscibile come parente del
-    // porpora invece di sembrare un rosso qualunque.
-    brand500 = Color(0xFFE05C70),
-    brand600 = Color(0xFFE77989),
+    brand50 = Color(0xFF2B1612),
+    // NELLO SCURO IL PORPORA NON CI STA, E NON SI FINGE.
+    //
+    // Il porpora è scuro per natura: #8e001c sul fondo basalto non arriva a
+    // 2:1, come testo è illeggibile. Schiarirlo alla tinta dello stemma (348°)
+    // dà un rosa confetto; spostarlo di un grado e mezzo verso il mattone,
+    // come si era provato, dà un rosa un po' meno confetto — un porpora finto,
+    // che non è né leggibile come identità né onesto.
+    //
+    // Quindi in scuro si cambia tinta dichiaratamente, e si prende l'altro
+    // colore romano che il logo ha già dentro: il TERRACOTTA del sole,
+    // #d8624a, tinta 10°. Alzato di tre punti di luce per stare largo sul
+    // 4,5:1 invece che appena sopra. Nessun colore inventato: in chiaro il
+    // porpora dello stemma, in scuro il terracotta dell'illustrazione.
+    //
+    // Sta a 32° dall'ambra degli avvisi (42°): verificato sul telefono,
+    // accanto al badge degli avvisi si legge come rosso caldo e non come un
+    // secondo giallo.
+    brand500 = Color(0xFFDB6D57),
+    brand600 = Color(0xFFE08370),
     live500 = Color(0xFF2FC98A),
     live600 = Color(0xFF47D69A),
     warn50 = Color(0xFF2A2113),
