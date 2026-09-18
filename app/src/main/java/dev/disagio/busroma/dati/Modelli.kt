@@ -1,0 +1,79 @@
+package dev.disagio.busroma.dati
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/**
+ * Le forme che arrivano dalle API, scritte sul JSON vero.
+ *
+ * TUTTO CIÒ CHE PUÒ MANCARE È NULLABILE, e non per prudenza generica: sono i
+ * casi osservati sul feed di produzione. `trip_id` è nullo quando l'arrivo
+ * viene dalla tabella e non da un mezzo tracciato; `color` e `text_color` sono
+ * nulli su tutte le linee di superficie e valorizzati solo sulle metropolitane;
+ * `headsign` manca su alcune corse.
+ *
+ * LA REGOLA CHE PROTEGGE L'APP INSTALLATA (vedi PIANO.md §4): le API non sono
+ * versionate, quindi il client deve tollerare campi che non conosce. Lo fa il
+ * `Json { ignoreUnknownKeys = true }` in Api.kt. Qui la controparte è non
+ * dichiarare obbligatorio nulla che il server possa smettere di mandare.
+ */
+
+@Serializable
+data class RispostaArrivi(
+    val stop: Fermata? = null,
+    val arrivals: List<Arrivo> = emptyList(),
+)
+
+@Serializable
+data class Fermata(
+    @SerialName("stop_id") val stopId: String,
+    val name: String,
+    /** Il numero di palina: è come i romani identificano una fermata. */
+    val code: String? = null,
+)
+
+@Serializable
+data class Arrivo(
+    @SerialName("route_id") val routeId: String,
+    @SerialName("short_name") val shortName: String,
+    val headsign: String? = null,
+    @SerialName("direction_id") val directionId: Int? = null,
+    /** Nullo quando l'arrivo è da tabella: non c'è una corsa tracciata. */
+    @SerialName("trip_id") val tripId: String? = null,
+    /** Istante ISO-8601 dell'arrivo previsto. È il dato da cui si calcola l'attesa. */
+    @SerialName("eta_ts") val etaTs: String,
+    /**
+     * Minuti di attesa calcolati DAL SERVER al momento della risposta.
+     *
+     * Non si mostra: è un'istantanea e invecchia sullo schermo. L'attesa va
+     * ricalcolata da `etaTs` a ogni battito dell'orologio, come fa il web con
+     * `minutesUntil`. Il campo resta qui perché esiste nel JSON e serve a
+     * ricordare che è una trappola, non un dato pronto.
+     */
+    val minutes: Int? = null,
+    /**
+     * Vero se il mezzo è tracciato davvero, falso se è solo l'orario previsto.
+     * È la distinzione più importante dell'app, e in interfaccia è il verde
+     * contro il grigio.
+     */
+    @SerialName("is_realtime") val isRealtime: Boolean = false,
+    /** Scostamento in secondi dichiarato da ATAC. Non si mostra: vedi i ritardi sul web. */
+    val delay: Int? = null,
+    /** Colore ufficiale, presente solo sulle metropolitane. */
+    val color: String? = null,
+    @SerialName("text_color") val textColor: String? = null,
+)
+
+@Serializable
+data class RispostaRicerca(
+    val stops: List<FermataTrovata> = emptyList(),
+)
+
+@Serializable
+data class FermataTrovata(
+    @SerialName("stop_id") val stopId: String,
+    val name: String,
+    val code: String? = null,
+    /** Le linee che fermano lì, per nome conosciuto ("117", "MEA"). */
+    val routes: List<String> = emptyList(),
+)

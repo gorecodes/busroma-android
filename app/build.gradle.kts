@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -23,6 +24,9 @@ android {
     }
 
     buildTypes {
+        all {
+            buildConfigField("String", "BASE_URL", "\"https://bus.disagio.dev\"")
+        }
         release {
             isMinifyEnabled = false
         }
@@ -35,6 +39,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Serve per il campo BASE_URL nei buildTypes.
+        buildConfig = true
     }
 }
 
@@ -49,4 +55,12 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.json)
+    implementation(libs.kotlinx.serialization.json)
 }
