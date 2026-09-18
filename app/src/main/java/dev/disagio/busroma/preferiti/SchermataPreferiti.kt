@@ -41,6 +41,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.Stella
+import dev.disagio.busroma.ui.PieDiPagina
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
@@ -64,6 +65,7 @@ private val ALTEZZA_RIGA = 64.dp
 fun SchermataPreferiti(
     apri: (String) -> Unit,
     apriAvvisi: () -> Unit,
+    apriInformazioni: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = LocalPalette.current
@@ -101,12 +103,17 @@ fun SchermataPreferiti(
                 color = c.neutral500,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+            // Anche senza preferiti: il piede deve esserci su ogni schermata,
+            // e questo ramo esce prima dell'elenco che lo contiene.
+            Spacer(Modifier.height(16.dp))
+            PieDiPagina(apriInformazioni)
             return@Column
         }
 
         ElencoRiordinabile(
             elenco = salvati,
             c = c,
+            apriInformazioni = apriInformazioni,
             apri = apri,
             rimuovi = { id -> scope.launch { Preferiti.rimuovi(contesto, id) } },
             sposta = { da, a -> scope.launch { Preferiti.sposta(contesto, da, a) } },
@@ -134,6 +141,7 @@ fun SchermataPreferiti(
 private fun ElencoRiordinabile(
     elenco: List<FermataPreferita>,
     c: Palette,
+    apriInformazioni: () -> Unit,
     apri: (String) -> Unit,
     rimuovi: (String) -> Unit,
     sposta: (Int, Int) -> Unit,
@@ -188,6 +196,7 @@ private fun ElencoRiordinabile(
             }
             HorizontalDivider(color = c.neutral200)
         }
+        PieDiPagina(apriInformazioni)
         Spacer(Modifier.height(24.dp))
     }
 }

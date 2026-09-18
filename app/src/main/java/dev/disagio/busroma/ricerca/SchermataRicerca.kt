@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import dev.disagio.busroma.ui.Croce
 import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.Stella
+import dev.disagio.busroma.ui.PieDiPagina
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
@@ -81,6 +82,7 @@ fun SchermataRicerca(
     apriLinea: (routeId: String, verso: Int?) -> Unit,
     apriPreferiti: () -> Unit,
     apriAvvisi: () -> Unit,
+    apriInformazioni: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val vm: RicercaViewModel = viewModel()
@@ -157,6 +159,7 @@ fun SchermataRicerca(
                 Preferiti(preferiti, c, apriFermata, apriPreferiti)
                 Spacer(Modifier.height(20.dp))
                 SezioneVicine(apriFermata, c)
+                PieDiPagina(apriInformazioni)
                 Spacer(Modifier.height(24.dp))
             }
 

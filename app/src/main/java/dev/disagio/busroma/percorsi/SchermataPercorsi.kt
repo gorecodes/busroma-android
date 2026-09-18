@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.disagio.busroma.dati.OpzioneItinerario
 import dev.disagio.busroma.ui.AzioniIntestazione
+import dev.disagio.busroma.ui.PieDiPagina
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 
@@ -49,6 +50,7 @@ import dev.disagio.busroma.ui.theme.Palette
 fun SchermataPercorsi(
     apriFermata: (String) -> Unit,
     apriAvvisi: () -> Unit,
+    apriInformazioni: () -> Unit,
     modifier: Modifier = Modifier,
     vm: PercorsiViewModel = viewModel(),
 ) {
@@ -198,6 +200,7 @@ fun SchermataPercorsi(
                     )
                 }
             }
+            PieDiPagina(apriInformazioni)
             Spacer(Modifier.height(24.dp))
         }
     }

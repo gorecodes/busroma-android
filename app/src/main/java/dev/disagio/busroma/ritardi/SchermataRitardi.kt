@@ -39,6 +39,7 @@ import dev.disagio.busroma.dati.LineaRitardo
 import dev.disagio.busroma.dati.RispostaRitardi
 import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.DistintivoLinea
+import dev.disagio.busroma.ui.PieDiPagina
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import kotlinx.coroutines.delay
@@ -76,7 +77,11 @@ private fun minuti(secondi: Int): String {
  * poggia non è un dato, è un'opinione con una cifra davanti.
  */
 @Composable
-fun SchermataRitardi(apriAvvisi: () -> Unit, modifier: Modifier = Modifier) {
+fun SchermataRitardi(
+    apriAvvisi: () -> Unit,
+    apriInformazioni: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val c = LocalPalette.current
     var dati by remember { mutableStateOf<RispostaRitardi?>(null) }
     var errore by remember { mutableStateOf(false) }
@@ -143,6 +148,7 @@ fun SchermataRitardi(apriAvvisi: () -> Unit, modifier: Modifier = Modifier) {
                 d == null -> Messaggio("Conto...", c, null)
                 else -> Contenuto(d, c)
             }
+            PieDiPagina(apriInformazioni)
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -18,6 +18,7 @@ import dev.disagio.busroma.arrivi.SchermataArrivi
 import dev.disagio.busroma.avvisi.SchermataAvvisi
 import dev.disagio.busroma.corsa.SchermataCorsa
 import dev.disagio.busroma.linea.SchermataLinea
+import dev.disagio.busroma.informazioni.SchermataInformazioni
 import dev.disagio.busroma.percorsi.SchermataPercorsi
 import dev.disagio.busroma.preferiti.SchermataPreferiti
 import dev.disagio.busroma.ritardi.SchermataRitardi
@@ -53,6 +54,9 @@ object Percorsi
 
 @Serializable
 object Ritardi
+
+@Serializable
+object Informazioni
 
 @Serializable
 object Avvisi
@@ -107,22 +111,31 @@ fun AppBusRoma() {
                     apriLinea = { routeId, verso -> nav.navigate(LineaRotta(routeId, verso)) },
                     apriPreferiti = { nav.navigate(Preferiti) },
                     apriAvvisi = { nav.navigate(Avvisi) },
+                    apriInformazioni = { nav.navigate(Informazioni) },
                 )
             }
             composable<Preferiti> {
                 SchermataPreferiti(
                     apri = { stopId -> nav.navigate(Arrivi(stopId)) },
                     apriAvvisi = { nav.navigate(Avvisi) },
+                    apriInformazioni = { nav.navigate(Informazioni) },
                 )
             }
             composable<Percorsi> {
                 SchermataPercorsi(
                     apriFermata = { stopId -> nav.navigate(Arrivi(stopId)) },
                     apriAvvisi = { nav.navigate(Avvisi) },
+                    apriInformazioni = { nav.navigate(Informazioni) },
                 )
             }
             composable<Ritardi> {
-                SchermataRitardi(apriAvvisi = { nav.navigate(Avvisi) })
+                SchermataRitardi(
+                    apriAvvisi = { nav.navigate(Avvisi) },
+                    apriInformazioni = { nav.navigate(Informazioni) },
+                )
+            }
+            composable<Informazioni> {
+                SchermataInformazioni(apriAvvisi = { nav.navigate(Avvisi) })
             }
             composable<Avvisi> { SchermataAvvisi() }
             composable<Corsa> { v ->
