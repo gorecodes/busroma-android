@@ -42,6 +42,7 @@ import dev.disagio.busroma.dati.Arrivo
 import dev.disagio.busroma.preferiti.FermataPreferita
 import dev.disagio.busroma.preferiti.Preferiti
 import dev.disagio.busroma.ui.AzioniIntestazione
+import dev.disagio.busroma.ui.DistintivoLinea
 import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
@@ -197,7 +198,7 @@ private fun RigaArrivo(a: Arrivo, adesso: Long, c: Palette, apriCorsa: (String) 
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DistintivoLinea(a, c)
+        DistintivoLinea(a.shortName, a.color, a.textColor)
         Spacer(Modifier.width(10.dp))
         Text(
             text = a.headsign ?: "Destinazione non indicata",
@@ -210,36 +211,6 @@ private fun RigaArrivo(a: Arrivo, adesso: Long, c: Palette, apriCorsa: (String) 
         Spacer(Modifier.width(10.dp))
         Attesa(a, adesso, c)
     }
-}
-
-/**
- * Il numero della linea. Il colore arriva dal feed GTFS solo per le
- * metropolitane; per tutto il resto è basalto, come deciso sul web — le linee
- * di superficie non hanno un colore ufficiale e inventarne uno sarebbe
- * decorazione travestita da dato.
- *
- * Il ripiego usa la SCALA e non un esadecimale fisso, esattamente come
- * `routeBadgeStyle` sul web: in modalità scura la scala si ribalta, e un
- * basalto fisso coinciderebbe con lo sfondo facendo sparire la targhetta di
- * ogni autobus. I colori che arrivano dal GTFS restano letterali, perché sono
- * identità di linea.
- */
-@Composable
-private fun DistintivoLinea(a: Arrivo, c: Palette) {
-    val fondo = a.color?.let { coloreDaEsadecimale(it) } ?: c.neutral900
-    val testo = a.textColor?.let { coloreDaEsadecimale(it) } ?: c.neutral100
-    Text(
-        text = a.shortName,
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        color = testo,
-        maxLines = 1,
-        modifier = Modifier
-            .width(46.dp)
-            .background(fondo, RoundedCornerShape(3.dp))
-            .padding(vertical = 5.dp),
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-    )
 }
 
 /**
@@ -308,16 +279,5 @@ private fun Messaggio(testo: String, c: Palette, riprova: (() -> Unit)?) {
                     .padding(horizontal = 14.dp, vertical = 11.dp),
             )
         }
-    }
-}
-
-/** "C4161C" o "#C4161C" dal feed GTFS a colore Compose. */
-private fun coloreDaEsadecimale(hex: String): androidx.compose.ui.graphics.Color? {
-    val pulito = hex.removePrefix("#")
-    if (pulito.length != 6) return null
-    return try {
-        androidx.compose.ui.graphics.Color(("ff$pulito").toLong(16))
-    } catch (e: Exception) {
-        null
     }
 }

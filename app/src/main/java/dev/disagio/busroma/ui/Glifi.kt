@@ -176,3 +176,63 @@ fun Croce(colore: Color, modifier: Modifier = Modifier) {
             cap = androidx.compose.ui.graphics.StrokeCap.Round)
     }
 }
+
+/**
+ * Percorso: due fermi collegati da una strada che gira. È il glifo della
+ * sezione Percorsi, ricalcato su `RouteGlyph` del web.
+ *
+ * Gli angoli sono quadratiche con il controllo nel vertice: la `A` degli
+ * archi SVG si riproduce così senza costruire ellissi, e a ventidue pixel la
+ * differenza non esiste.
+ */
+@Composable
+fun Percorso(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        fun p(v: Float) = v / 20f * l
+        val sp = p(1.6f)
+        drawCircle(colore, radius = p(2.2f), center = Offset(p(4.5f), p(15.5f)), style = Stroke(sp))
+        drawCircle(colore, radius = p(2.2f), center = Offset(p(15.5f), p(4.5f)), style = Stroke(sp))
+        val strada = Path().apply {
+            moveTo(p(4.5f), p(13f))
+            lineTo(p(4.5f), p(9.5f))
+            quadraticTo(p(4.5f), p(7f), p(7f), p(7f))
+            lineTo(p(13f), p(7f))
+            quadraticTo(p(15.5f), p(7f), p(15.5f), p(4.5f))
+        }
+        drawPath(
+            strada,
+            colore,
+            style = Stroke(width = sp, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+        )
+    }
+}
+
+/**
+ * Spillo: "sei qui". Segna il capo del viaggio preso dalla posizione, dove il
+ * web usa `PinGlyph`.
+ */
+@Composable
+fun Spillo(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        fun p(v: Float) = v / 20f * l
+        val sp = p(1.7f)
+        val goccia = Path().apply {
+            moveTo(p(10f), p(18f))
+            quadraticTo(p(16f), p(12.8f), p(16f), p(8.6f))
+            // Mezzo giro sopra, in senso antiorario: chiude la testa dello
+            // spillo fra i due fianchi.
+            arcTo(
+                androidx.compose.ui.geometry.Rect(p(4f), p(2.6f), p(16f), p(14.6f)),
+                0f,
+                -180f,
+                false,
+            )
+            quadraticTo(p(4f), p(12.8f), p(10f), p(18f))
+            close()
+        }
+        drawPath(goccia, colore, style = Stroke(width = sp))
+        drawCircle(colore, radius = p(2.1f), center = Offset(p(10f), p(8.4f)))
+    }
+}

@@ -300,3 +300,120 @@ data class FermataCorsa(
     val lon: Double = 0.0,
     val lat: Double = 0.0,
 )
+
+// ---------------------------------------------------------------------------
+// PIANIFICATORE
+//
+// Il calcolo NON sta qui. L'algoritmo (una Connection Scan) gira sul server in
+// /api/plan, insieme alle sue seicento righe di politiche: raggio di accesso,
+// finestra di campionamento, scarto delle opzioni dominate. L'app manda due
+// capi e un orario e disegna quello che torna. Portare il router sul telefono
+// avrebbe significato scaricare l'intero orario di Roma e mantenere due
+// implementazioni destinate a divergere.
+// ---------------------------------------------------------------------------
+
+/**
+ * Una fermata dentro un itinerario. Attenzione: qui il campo è `stopId` in
+ * cammello, non `stop_id`, perché /api/plan compone la risposta a mano invece
+ * di rigirare le righe del database.
+ */
+@Serializable
+data class FermataItinerario(
+    val stopId: String,
+    val name: String,
+    val code: String? = null,
+)
+
+/**
+ * Un pezzo di viaggio: o si cammina, o si sta su un mezzo.
+ *
+ * Gerarchia sigillata e non un'unica classe con tutto nullabile: le due forme
+ * hanno campi diversi per davvero — una tratta a piedi non ha una linea, una
+ * in mezzo ha sempre due fermate — e tenerle separate fa sì che la schermata
+ * non possa dimenticare un caso.
+ *
+ * Il discriminatore è il campo `kind`, configurato in Api.kt: si usa
+ * l'impostazione del costruttore Json invece dell'annotazione
+ * @JsonClassDiscriminator, che è ancora sperimentale.
+ */
+@Serializable
+sealed interface Tratta
+
+@Serializable
+@SerialName("walk")
+data class TrattaAPiedi(
+    val from: FermataItinerario? = null,
+    val to: FermataItinerario? = null,
+    val minutes: Int,
+    /** Presente solo sull'opzione "tutto a piedi". */
+    val meters: Int? = null,
+    val departAt: String? = null,
+    val arriveAt: String? = null,
+) : Tratta
+
+@Serializable
+@SerialName("ride")
+data class TrattaInMezzo(
+    val tripId: String,
+    val shortName: String,
+    val color: String? = null,
+    val textColor: String? = null,
+    val headsign: String? = null,
+    val from: FermataItinerario,
+    val to: FermataItinerario,
+    val departAt: String,
+    val arriveAt: String,
+    val minutes: Int,
+) : Tratta
+
+@Serializable
+data class OpzioneItinerario(
+    val departAt: String,
+    val arriveAt: String,
+    /**
+     * Da quando esci a quando arrivi: cammino, viaggio e cambi, MA NON
+     * l'attesa iniziale. Quella dipende solo da quando ti trovi a uscire, e
+     * conteggiarla fa sembrare scarso un percorso ottimo il cui autobus è
+     * appena passato.
+     */
+    val durationMin: Int,
+    /** Gli orari sono di UNA corsa a titolo d'esempio, non "la" partenza. */
+    val esempio: Boolean = true,
+    val walkMin: Int = 0,
+    val rides: Int = 0,
+    /** Le linee in ordine: serve a riconoscere il percorso a colpo d'occhio. */
+    val lines: List<String> = emptyList(),
+    val legs: List<Tratta> = emptyList(),
+)
+
+@Serializable
+data class OpzioneAPiedi(val minutes: Int, val meters: Int)
+
+@Serializable
+data class Piano(
+    val options: List<OpzioneItinerario> = emptyList(),
+    /** Presente solo se camminare è un'alternativa sensata da confrontare. */
+    val walkOption: OpzioneAPiedi? = null,
+)
+
+/**
+ * Un risultato della ricerca unificata dei capi: fermate del GTFS e luoghi di
+ * OpenStreetMap nello stesso elenco, perché per chi cerca sono la stessa cosa.
+ *
+ * Una fermata ha `stopId` e non le coordinate; un luogo ha le coordinate e non
+ * lo `stopId`. Chi legge deve controllare quale dei due c'è.
+ */
+@Serializable
+data class LuogoTrovato(
+    /** "stop", "street", "address" o "poi". */
+    val kind: String,
+    val id: String,
+    val label: String,
+    val detail: String? = null,
+    val stopId: String? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
+)
+
+@Serializable
+data class RispostaGeocodifica(val results: List<LuogoTrovato> = emptyList())
