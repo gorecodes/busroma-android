@@ -134,3 +134,92 @@ data class ArrivoVicino(
     val color: String? = null,
     @SerialName("text_color") val textColor: String? = null,
 )
+
+@Serializable
+data class RispostaLinee(
+    val routes: List<Linea> = emptyList(),
+)
+
+@Serializable
+data class Linea(
+    @SerialName("route_id") val routeId: String,
+    @SerialName("short_name") val shortName: String,
+    /**
+     * ATTENZIONE: e' la STRINGA VUOTA, non null, su 360 delle 434 linee di
+     * Roma. Sul web `longName ?? etichetta` non la intercettava e il titolo
+     * restava vuoto: serve un controllo sul contenuto. Vedi `nomeLinea`.
+     */
+    @SerialName("long_name") val longName: String? = null,
+    /** route_type GTFS: 0 tram, 1 metro, 2 treno, 3 bus, 11 filobus. */
+    val type: Int = 3,
+    val color: String? = null,
+    @SerialName("text_color") val textColor: String? = null,
+)
+
+/** route_type GTFS -> etichetta, come sul web. */
+fun etichettaTipo(type: Int): String = when (type) {
+    0 -> "Tram"
+    1 -> "Metro"
+    2 -> "Treno"
+    3 -> "Bus"
+    4 -> "Traghetto"
+    5, 7 -> "Funicolare"
+    11 -> "Filobus"
+    else -> "Linea"
+}
+
+/**
+ * Nome da mostrare per una linea: il nome lungo se c'e' qualcosa dentro,
+ * altrimenti il tipo. Il controllo e' sul CONTENUTO e non sulla nullita',
+ * perche' la gran parte delle linee romane ha long_name uguale a "".
+ */
+fun nomeLinea(longName: String?, type: Int): String =
+    longName?.trim()?.takeIf { it.isNotEmpty() } ?: etichettaTipo(type)
+
+@Serializable
+data class RispostaLinea(
+    val route: Linea? = null,
+    val directions: List<Verso> = emptyList(),
+)
+
+@Serializable
+data class Verso(
+    @SerialName("direction_id") val directionId: Int,
+    val headsign: String? = null,
+)
+
+@Serializable
+data class RispostaFermateLinea(
+    val stops: List<FermataLinea> = emptyList(),
+)
+
+@Serializable
+data class FermataLinea(
+    @SerialName("stop_id") val stopId: String,
+    val name: String,
+    val code: String? = null,
+    @SerialName("stop_sequence") val sequenza: Int,
+    val lon: Double,
+    val lat: Double,
+)
+
+@Serializable
+data class RispostaMezzi(
+    val vehicles: List<Mezzo> = emptyList(),
+)
+
+@Serializable
+data class Mezzo(
+    @SerialName("vehicle_id") val vehicleId: String,
+    val lat: Double,
+    val lon: Double,
+    val bearing: Double? = null,
+    @SerialName("trip_id") val tripId: String? = null,
+    /**
+     * Spesso NULLO nel feed ATAC, anche con il mezzo localizzato.
+     * Per questo la posizione sulla lista si calcola dalle coordinate e non da
+     * qui: e' la stessa scelta del web, dove `liveByStop` cerca la fermata piu'
+     * vicina al GPS del mezzo invece di fidarsi di questo campo.
+     */
+    @SerialName("next_stop_id") val nextStopId: String? = null,
+)

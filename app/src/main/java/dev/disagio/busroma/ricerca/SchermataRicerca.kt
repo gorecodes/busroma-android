@@ -24,6 +24,10 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +43,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.Color
+import dev.disagio.busroma.dati.nomeLinea
+import dev.disagio.busroma.storico.Storico
+import dev.disagio.busroma.storico.VoceStorico
 import dev.disagio.busroma.dati.FermataTrovata
 import dev.disagio.busroma.preferiti.CartaPreferito
 import dev.disagio.busroma.preferiti.FermataPreferita
@@ -62,6 +74,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SchermataRicerca(
     apriFermata: (stopId: String) -> Unit,
+    apriLinea: (routeId: String, verso: Int?) -> Unit,
     apriPreferiti: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -71,6 +84,12 @@ fun SchermataRicerca(
     val contesto = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferiti by DepositoPreferiti.flusso(contesto).collectAsStateWithLifecycle(emptyList())
+    val storico by Storico.flusso(contesto).collectAsStateWithLifecycle(emptyList())
+    // Lo storico compare quando si TOCCA il campo, non quando e' vuoto: e' il
+    // comportamento di Google e Safari, ed e' quello del web. A campo mai
+    // toccato la schermata mostra preferiti e arrivi vicini, che valgono di
+    // piu' di un elenco di cose cercate ieri.
+    var toccato by remember { mutableStateOf(false) }
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
         Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp)) {
@@ -80,15 +99,22 @@ fun SchermataRicerca(
                 color = c.neutral900,
             )
             Spacer(Modifier.height(10.dp))
-            CampoRicerca(stato.testo, vm::scrivi, c)
+            CampoRicerca(stato.testo, vm::scrivi, c) { toccato = true }
         }
 
         Spacer(Modifier.height(12.dp))
 
         when {
-            // A campo vuoto la schermata mostra i preferiti, non un
-            // suggerimento: sono la cosa piu' utile al primo colpo perche' non
-            // chiedono il permesso di posizione ne' una digitazione.
+            // Campo toccato e ancora vuoto: lo storico.
+            stato.testo.isBlank() && toccato && storico.isNotEmpty() -> Storico(
+                voci = storico,
+                c = c,
+                apriFermata = apriFermata,
+                apriLinea = { id -> apriLinea(id, null) },
+                svuota = { scope.launch { Storico.svuota(contesto) } },
+            )
+
+            // Campo mai toccato: quello che serve senza digitare niente.
             stato.testo.isBlank() -> Column(
                 Modifier.verticalScroll(rememberScrollState()),
             ) {
@@ -97,12 +123,50 @@ fun SchermataRicerca(
                 SezioneVicine(apriFermata, c)
                 Spacer(Modifier.height(24.dp))
             }
+
             stato.errore -> Nota("La ricerca non risponde.", c)
-            stato.risultati.isEmpty() && !stato.cercando -> Nota("Nessuna fermata con questo nome.", c)
+            stato.vuoto && !stato.cercando -> Nota("Nessuna linea e nessuna fermata con questo nome.", c)
+
             else -> LazyColumn {
-                items(stato.risultati, key = { it.stopId }) { f ->
-                    RigaFermata(f, c) { apriFermata(f.stopId) }
-                    HorizontalDivider(color = c.neutral200)
+                // LE LINEE PRIMA DELLE FERMATE: cercando "90" si vuole la
+                // linea 90, non le fermate che hanno 90 nel nome. Sul web
+                // vale lo stesso ordine.
+                if (stato.linee.isNotEmpty()) {
+                    item { Titoletto("Linee", c) }
+                    items(stato.linee, key = { "l-" + it.routeId }) { l ->
+                        RigaLinea(l, c) {
+                            scope.launch {
+                                Storico.aggiungi(
+                                    contesto,
+                                    VoceStorico.Linea(
+                                        id = l.routeId,
+                                        etichetta = nomeLinea(l.longName, l.type),
+                                        shortName = l.shortName,
+                                        tipo = l.type,
+                                        colore = l.color,
+                                        coloreTesto = l.textColor,
+                                    ),
+                                )
+                            }
+                            apriLinea(l.routeId, null)
+                        }
+                        HorizontalDivider(color = c.neutral200)
+                    }
+                }
+                if (stato.fermate.isNotEmpty()) {
+                    item { Titoletto("Fermate", c) }
+                    items(stato.fermate, key = { "f-" + it.stopId }) { f ->
+                        RigaFermata(f, c) {
+                            scope.launch {
+                                Storico.aggiungi(
+                                    contesto,
+                                    VoceStorico.Fermata(f.stopId, f.name, f.code),
+                                )
+                            }
+                            apriFermata(f.stopId)
+                        }
+                        HorizontalDivider(color = c.neutral200)
+                    }
                 }
             }
         }
@@ -116,7 +180,15 @@ fun SchermataRicerca(
  * scrivere.
  */
 @Composable
-private fun CampoRicerca(testo: String, scrivi: (String) -> Unit, c: Palette) {
+private fun CampoRicerca(
+    testo: String,
+    scrivi: (String) -> Unit,
+    c: Palette,
+    alTocco: () -> Unit,
+) {
+    val interazioni = remember { MutableInteractionSource() }
+    val aFuoco by interazioni.collectIsFocusedAsState()
+    LaunchedEffect(aFuoco) { if (aFuoco) alTocco() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -134,6 +206,7 @@ private fun CampoRicerca(testo: String, scrivi: (String) -> Unit, c: Palette) {
             ),
             cursorBrush = SolidColor(c.neutral900),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            interactionSource = interazioni,
             modifier = Modifier.fillMaxWidth(),
             decorationBox = { campo ->
                 if (testo.isEmpty()) {
@@ -261,6 +334,152 @@ private fun Preferiti(
         // che sono la ragione per cui i preferiti esistono.
         mostrati.forEach { f ->
             CartaPreferito(f, c) { apri(f.stopId) }
+            HorizontalDivider(color = c.neutral200)
+        }
+    }
+}
+
+@Composable
+private fun Titoletto(testo: String, c: Palette) {
+    Text(
+        text = testo,
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.SemiBold,
+        color = c.neutral500,
+        modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp),
+    )
+}
+
+/** Una linea fra i risultati: il numero nel riquadro, poi il tipo o il nome. */
+@Composable
+private fun RigaLinea(l: dev.disagio.busroma.dati.Linea, c: Palette, apri: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = apri)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Distintivo(l.shortName, l.color, l.textColor, c)
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = nomeLinea(l.longName, l.type),
+            style = MaterialTheme.typography.bodyLarge,
+            color = c.neutral900,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun Distintivo(nome: String, colore: String?, coloreTesto: String?, c: Palette) {
+    Text(
+        text = nome,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = coloreTesto?.let { daEsadecimale(it) } ?: c.neutral100,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        modifier = Modifier
+            .width(46.dp)
+            .background(colore?.let { daEsadecimale(it) } ?: c.neutral900, RoundedCornerShape(3.dp))
+            .padding(vertical = 4.dp),
+    )
+}
+
+private fun daEsadecimale(hex: String): Color? {
+    val pulito = hex.removePrefix("#")
+    if (pulito.length != 6) return null
+    return try {
+        Color(("ff$pulito").toLong(16))
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
+ * Le ultime cinque ricerche.
+ *
+ * Si memorizza CIO' CHE VIENE SCELTO, non cio' che viene digitato: "term" e' un
+ * testo da ridigitare, una fermata scelta e' un posto dove tornare con un
+ * tocco. Per questo ogni voce porta con se' quanto basta a ridisegnarsi senza
+ * interrogare il server.
+ */
+@Composable
+private fun Storico(
+    voci: List<VoceStorico>,
+    c: Palette,
+    apriFermata: (String) -> Unit,
+    apriLinea: (String) -> Unit,
+    svuota: () -> Unit,
+) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Ultime ricerche",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = c.neutral500,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "Svuota",
+                style = MaterialTheme.typography.bodySmall,
+                color = c.neutral500,
+                modifier = Modifier
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClick = svuota)
+                    .padding(horizontal = 10.dp, vertical = 13.dp),
+            )
+        }
+        voci.forEach { v ->
+            when (v) {
+                is VoceStorico.Linea -> Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { apriLinea(v.id) }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Distintivo(v.shortName, v.colore, v.coloreTesto, c)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = v.etichetta,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = c.neutral900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                is VoceStorico.Fermata -> Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { apriFermata(v.id) }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        text = v.etichetta,
+                        style = stileNome,
+                        color = c.neutral900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    v.palina?.let {
+                        Text(
+                            text = "palina $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.neutral500,
+                        )
+                    }
+                }
+            }
             HorizontalDivider(color = c.neutral200)
         }
     }

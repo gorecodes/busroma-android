@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.disagio.busroma.dati.Api
 import dev.disagio.busroma.dati.FermataTrovata
+import dev.disagio.busroma.dati.Linea
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,18 +16,20 @@ import kotlinx.coroutines.launch
 /**
  * 250 millisecondi, la stessa attesa del web.
  *
- * Non è un numero arbitrario: sotto, si interroga il server a ogni tasto e la
- * ricerca "termini" diventa sette chiamate; sopra, la digitazione sembra
- * inceppata.
+ * Non e' un numero arbitrario: sotto, si interroga il server a ogni tasto e
+ * "termini" diventa sette chiamate; sopra, la digitazione sembra inceppata.
  */
 private const val ATTESA_MS = 250L
 
 data class StatoRicerca(
     val testo: String = "",
-    val risultati: List<FermataTrovata> = emptyList(),
+    val linee: List<Linea> = emptyList(),
+    val fermate: List<FermataTrovata> = emptyList(),
     val cercando: Boolean = false,
     val errore: Boolean = false,
-)
+) {
+    val vuoto: Boolean get() = linee.isEmpty() && fermate.isEmpty()
+}
 
 class RicercaViewModel : ViewModel() {
 
@@ -33,15 +37,15 @@ class RicercaViewModel : ViewModel() {
     val stato: StateFlow<StatoRicerca> = _stato.asStateFlow()
 
     /**
-     * L'attesa è implementata con un lavoro annullabile invece che con
-     * l'operatore `debounce` sui flussi: fa esattamente la stessa cosa del
-     * `setTimeout` più `clearTimeout` del web, si legge senza conoscere gli
-     * operatori, e non dipende da API ancora marcate come sperimentali.
+     * L'attesa e' implementata con un lavoro annullabile invece che con
+     * l'operatore `debounce` sui flussi: fa la stessa cosa del `setTimeout`
+     * piu' `clearTimeout` del web, si legge senza conoscere gli operatori, e
+     * non dipende da API sperimentali.
      *
-     * L'annullamento risolve anche il problema delle risposte fuori ordine:
-     * senza, una richiesta lenta partita per "term" potrebbe arrivare DOPO
-     * quella per "termini" e sovrascrivere i risultati buoni con quelli
-     * vecchi. Sul web la stessa cosa è gestita con la variabile `ignore`.
+     * L'annullamento risolve anche le risposte fuori ordine: senza, una
+     * richiesta lenta partita per "term" potrebbe arrivare DOPO quella per
+     * "termini" e sovrascrivere i risultati buoni con i vecchi. Sul web la
+     * stessa cosa e' gestita con la variabile `ignore`.
      */
     private var lavoro: Job? = null
 
@@ -59,18 +63,26 @@ class RicercaViewModel : ViewModel() {
         lavoro = viewModelScope.launch {
             delay(ATTESA_MS)
             try {
-                val r = Api.cercaFermate(pulito)
+                // LINEE E FERMATE IN PARALLELO, come sul web: sono due
+                // endpoint indipendenti, e farle in sequenza raddoppierebbe
+                // l'attesa per niente.
+                val attesaLinee = async { Api.cercaLinee(pulito).routes }
+                val attesaFermate = async { Api.cercaFermate(pulito).stops }
+
                 _stato.value = _stato.value.copy(
-                    risultati = r.stops,
+                    linee = attesaLinee.await(),
+                    fermate = attesaFermate.await(),
                     cercando = false,
                     errore = false,
                 )
             } catch (e: Exception) {
-                // Qui i risultati vecchi SI BUTTANO, al contrario degli arrivi:
-                // mostrare i risultati di "termini" mentre l'utente ha scritto
-                // "tuscolana" sarebbe una risposta sbagliata, non una vecchia.
+                // Qui i risultati vecchi SI BUTTANO, al contrario degli
+                // arrivi: mostrare i risultati di "termini" mentre l'utente ha
+                // scritto "tuscolana" sarebbe una risposta sbagliata, non una
+                // vecchia.
                 _stato.value = _stato.value.copy(
-                    risultati = emptyList(),
+                    linee = emptyList(),
+                    fermate = emptyList(),
                     cercando = false,
                     errore = true,
                 )

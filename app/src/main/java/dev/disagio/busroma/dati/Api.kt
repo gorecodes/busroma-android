@@ -75,6 +75,26 @@ object Api {
     suspend fun arrivi(stopId: String): RispostaArrivi =
         client.get("$base/api/stops/${stopId.encodeURLPathPart()}/arrivals").body()
 
+    /** Anagrafica della linea e i suoi versi. */
+    suspend fun linea(routeId: String): RispostaLinea =
+        client.get("$base/api/routes/${routeId.encodeURLPathPart()}").body()
+
+    /** Le fermate di un verso, in ordine di percorso. */
+    suspend fun fermateLinea(routeId: String, verso: Int): RispostaFermateLinea =
+        client.get("$base/api/routes/${routeId.encodeURLPathPart()}/stops") {
+            parameter("dir", verso)
+        }.body()
+
+    /** I mezzi attualmente localizzati su un verso. */
+    suspend fun mezziLinea(routeId: String, verso: Int): RispostaMezzi =
+        client.get("$base/api/routes/${routeId.encodeURLPathPart()}/live") {
+            parameter("dir", verso)
+        }.body()
+
+    /** Ricerca linea per numero o nome. */
+    suspend fun cercaLinee(query: String): RispostaLinee =
+        client.get("$base/api/routes") { parameter("q", query) }.body()
+
     /** Ricerca fermata per nome o numero di palina. */
     suspend fun cercaFermate(query: String): RispostaRicerca =
         client.get("$base/api/stops/search") { parameter("q", query) }.body()
