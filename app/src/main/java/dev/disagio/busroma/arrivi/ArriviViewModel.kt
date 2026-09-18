@@ -3,6 +3,7 @@ package dev.disagio.busroma.arrivi
 import androidx.lifecycle.ViewModel
 import dev.disagio.busroma.dati.Api
 import dev.disagio.busroma.dati.Arrivo
+import dev.disagio.busroma.dati.Avviso
 import dev.disagio.busroma.dati.Fermata
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,6 +12,12 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** Ogni 15 secondi, come sul web: è il ritmo del feed ATAC. */
 private const val INTERVALLO_MS = 15_000L
+
+/**
+ * Gli avvisi si ricaricano ogni cinque minuti, non ogni quindici secondi:
+ * una deviazione non cambia al minuto come un autobus.
+ */
+private const val INTERVALLO_AVVISI_MS = 5 * 60_000L
 
 data class StatoArrivi(
     val fermata: Fermata? = null,
@@ -28,6 +35,14 @@ data class StatoArrivi(
      * valore riuscito e sembrerebbero veri.
      */
     val adesso: Long = System.currentTimeMillis(),
+    /**
+     * short_name della linea → avvisi che la riguardano A QUESTA FERMATA.
+     *
+     * Una mappa e non una lista perché la schermata deve marcare le righe
+     * delle linee coinvolte, non mostrare un riquadro: la domanda è "la MIA
+     * linea ha problemi", e un pannello in cima la lascia senza risposta.
+     */
+    val avvisiPerLinea: Map<String, List<Avviso>> = emptyMap(),
 )
 
 class ArriviViewModel(private val stopId: String) : ViewModel() {
@@ -44,16 +59,54 @@ class ArriviViewModel(private val stopId: String) : ViewModel() {
      * a scheda nascosta.
      */
     suspend fun ciclo() {
+        var ultimiAvvisi = 0L
         while (true) {
             aggiorna()
+            // Gli avvisi hanno un ritmo loro dentro lo stesso ciclo, invece
+            // di una seconda coroutine: un solo ciclo da annullare quando la
+            // schermata esce di scena, e nessun modo di dimenticarne uno
+            // acceso in background.
+            val ora = System.currentTimeMillis()
+            if (ora - ultimiAvvisi >= INTERVALLO_AVVISI_MS) {
+                ultimiAvvisi = ora
+                aggiornaAvvisi()
+            }
             delay(INTERVALLO_MS)
+        }
+    }
+
+    /**
+     * SOLO GLI URGENTI, come sul web.
+     *
+     * Un cantiere è attivo per mesi, e un triangolo giallo permanente sulla
+     * riga della 60 è il modo più efficace di insegnare alla gente a ignorare
+     * i triangoli gialli. Gli avvisi lunghi restano nella schermata Avvisi,
+     * dove si vanno a leggere, non dove si guarda l'attesa.
+     */
+    private suspend fun aggiornaAvvisi() {
+        try {
+            val m = mutableMapOf<String, MutableList<Avviso>>()
+            for (a in Api.avvisiFermata(stopId).avvisi) {
+                if (!a.urgente) continue
+                // `lineeQui` e non `linee`: un avviso può riguardare dieci
+                // linee di cui solo due passano da questa palina.
+                for (linea in a.lineeQui) m.getOrPut(linea) { mutableListOf() }.add(a)
+            }
+            _stato.value = _stato.value.copy(avvisiPerLinea = m)
+        } catch (e: Exception) {
+            // Un avviso che non si carica non deve rompere la lista degli
+            // arrivi, che è il motivo per cui l'app è stata aperta. Si tiene
+            // la mappa precedente.
         }
     }
 
     private suspend fun aggiorna() {
         try {
             val r = Api.arrivi(stopId)
-            _stato.value = StatoArrivi(
+            // copy() e non un StatoArrivi nuovo: costruendolo da zero si
+            // azzerava la mappa degli avvisi a ogni giro di quindici secondi,
+            // e i triangoli lampeggiavano.
+            _stato.value = _stato.value.copy(
                 fermata = r.stop,
                 arrivi = r.arrivals,
                 primoCaricamento = false,

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -219,11 +221,19 @@ private fun Intestazione(
  * I due versi come due tasti larghi, non come un menu: sono sempre due, e i
  * capolinea romani sono lunghi - su una riga sola si troncherebbero sempre, ed
  * e' il difetto che sul web e' stato corretto mandandoli a capo.
+ *
+ * I DUE TASTI DEVONO ESSERE ALTI UGUALE. Andando a capo, un capolinea lungo
+ * rendeva il suo tasto piu' alto dell'altro: sulla 982 il verso DICIASSETTESIMA
+ * OLIMPIADE occupava due righe e STAZIONE QUATTRO VENTI una, e i due riquadri
+ * non si allineavano in basso. Sul web non succede perche' e' una griglia CSS,
+ * che pareggia le celle da se'. Qui si ottiene con height(IntrinsicSize.Max)
+ * sulla riga - che misura il piu' alto dei due - e fillMaxHeight sui figli,
+ * che li fa arrivare entrambi a quell'altezza.
  */
 @Composable
 private fun SceltaVerso(versi: List<Verso>, attuale: Int, c: Palette, scegli: (Int) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().height(IntrinsicSize.Max).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         versi.forEach { v ->
@@ -231,6 +241,7 @@ private fun SceltaVerso(versi: List<Verso>, attuale: Int, c: Palette, scegli: (I
             Column(
                 Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(4.dp))
                     .background(if (scelto) c.neutral900 else c.neutral50)
                     .border(

@@ -130,6 +130,7 @@ fun AppBusRoma() {
                 SchermataArrivi(
                     stopId = rotta.stopId,
                     apriCorsa = { tripId -> nav.navigate(Corsa(tripId)) },
+                    apriLinea = { routeId, verso -> nav.navigate(LineaRotta(routeId, verso)) },
                     apriAvvisi = { nav.navigate(Avvisi) },
                 )
             }

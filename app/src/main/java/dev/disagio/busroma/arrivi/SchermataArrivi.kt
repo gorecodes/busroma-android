@@ -24,6 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +45,9 @@ import dev.disagio.busroma.dati.Arrivo
 import dev.disagio.busroma.preferiti.FermataPreferita
 import dev.disagio.busroma.preferiti.Preferiti
 import dev.disagio.busroma.ui.AzioniIntestazione
+import dev.disagio.busroma.dati.Avviso
+import androidx.compose.ui.draw.drawBehind
+import dev.disagio.busroma.ui.Triangolo
 import dev.disagio.busroma.ui.DistintivoLinea
 import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
@@ -67,6 +73,7 @@ import kotlinx.coroutines.launch
 fun SchermataArrivi(
     stopId: String,
     apriCorsa: (String) -> Unit,
+    apriLinea: (String, Int?) -> Unit,
     apriAvvisi: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,6 +93,13 @@ fun SchermataArrivi(
     val contesto = LocalContext.current
     val preferiti by Preferiti.flusso(contesto).collectAsStateWithLifecycle(emptyList())
     val salvata = preferiti.any { it.stopId == stopId }
+
+    /**
+     * Quale avviso è aperto: UNO SOLO alla volta, e la chiave è quella della
+     * riga. Tenere un booleano per riga avrebbe lasciato lo schermo pieno di
+     * pannelli aperti, e l'elenco degli arrivi serve a scorrere i numeri.
+     */
+    var apertoId by remember(stopId) { mutableStateOf<String?>(null) }
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
         Row(
@@ -174,7 +188,22 @@ fun SchermataArrivi(
             )
             else -> LazyColumn {
                 items(stato.arrivi, key = { "${it.routeId}-${it.directionId}-${it.etaTs}" }) { a ->
-                    RigaArrivo(a, stato.adesso, c, apriCorsa)
+                    val chiave = "${a.routeId}-${a.directionId}-${a.etaTs}"
+                    RigaArrivo(
+                        a = a,
+                        adesso = stato.adesso,
+                        c = c,
+                        suoiAvvisi = stato.avvisiPerLinea[a.shortName],
+                        aperto = apertoId == chiave,
+                        alternaAvviso = { apertoId = if (apertoId == chiave) null else chiave },
+                        // LA RIGA PORTA SEMPRE DA QUALCHE PARTE, come sul web:
+                        // alla corsa se il mezzo e' tracciato, altrimenti alla
+                        // linea nel verso di questo arrivo.
+                        apri = {
+                            if (a.tripId != null) apriCorsa(a.tripId)
+                            else apriLinea(a.routeId, a.directionId)
+                        },
+                    )
                     HorizontalDivider(color = c.neutral200)
                 }
             }
@@ -182,24 +211,63 @@ fun SchermataArrivi(
     }
 }
 
+/**
+ * Una riga di arrivo, con l'avviso di servizio della sua linea se c'è.
+ *
+ * IL TRIANGOLO STA A SINISTRA, subito dopo la targhetta, e non in fondo alla
+ * riga: sul web era stato provato dall'altra parte e la riga diventava
+ * illeggibile - minuti, campanella e triangolo tutti addossati a destra. A
+ * sinistra il triangolo sta accanto alla cosa che qualifica, cioè la linea.
+ *
+ * L'avviso si APRE SOTTO LA RIGA invece di stare in un riquadro in cima alla
+ * schermata: la domanda è "la MIA linea ha problemi", e un pannello generale
+ * la lascia senza risposta costringendo a leggere per capire se riguarda te.
+ */
 @Composable
-private fun RigaArrivo(a: Arrivo, adesso: Long, c: Palette, apriCorsa: (String) -> Unit) {
+private fun RigaArrivo(
+    a: Arrivo,
+    adesso: Long,
+    c: Palette,
+    suoiAvvisi: List<Avviso>?,
+    aperto: Boolean,
+    alternaAvviso: () -> Unit,
+    apri: () -> Unit,
+) {
+    Column(Modifier.background(if (aperto) c.warn50 else c.neutral100)) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // Cliccabile SOLO con un trip_id: senza, non c'e' una corsa da
-            // aprire - l'arrivo viene dalla tabella e non da un mezzo. Una
-            // riga che a volte reagisce e a volte no e' peggio di una inerte,
-            // quindi il tocco si abilita solo dove porta da qualche parte.
-            .then(
-                if (a.tripId != null) Modifier.clickable { apriCorsa(a.tripId) }
-                else Modifier,
-            )
+            // SEMPRE CLICCABILE.
+            //
+            // Prima il tocco era abilitato solo con un trip_id, ragionando che
+            // senza mezzo tracciato non ci fosse una corsa da aprire. Era un
+            // errore: sul web la riga senza trip_id porta alla LINEA nel verso
+            // dell'arrivo, quindi una destinazione c'e' sempre. E l'errore si
+            // e' visto nel momento peggiore - col tempo reale di ATAC giu',
+            // nessun arrivo ha un trip_id e l'intera lista diventava inerte su
+            // ogni fermata dell'app.
+            .clickable(onClick = apri)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DistintivoLinea(a.shortName, a.color, a.textColor)
-        Spacer(Modifier.width(10.dp))
+        if (suoiAvvisi != null) {
+            // Area di tocco da 44dp attorno a un glifo da 15: il triangolo è
+            // piccolo per non urlare, ma il bersaglio deve essere un dito.
+            Box(
+                Modifier
+                    .size(width = 30.dp, height = 44.dp)
+                    .clickable(onClick = alternaAvviso),
+                contentAlignment = Alignment.Center,
+            ) {
+                Triangolo(
+                    if (aperto) c.warn700 else c.warn600,
+                    Modifier.size(15.dp),
+                )
+            }
+        } else {
+            Spacer(Modifier.width(10.dp))
+        }
         Text(
             text = a.headsign ?: "Destinazione non indicata",
             style = stileNome,
@@ -210,6 +278,57 @@ private fun RigaArrivo(a: Arrivo, adesso: Long, c: Palette, apriCorsa: (String) 
         )
         Spacer(Modifier.width(10.dp))
         Attesa(a, adesso, c)
+    }
+
+    if (aperto && suoiAvvisi != null) {
+        Column(
+            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            suoiAvvisi.forEach { av ->
+                Column(
+                    Modifier
+                        .drawBehind {
+                            // Filetto verticale a sinistra: lega il testo alla
+                            // riga da cui è uscito. Disegnato invece che messo
+                            // con un Box, così non entra nel flusso.
+                            drawRect(
+                                color = c.warn400,
+                                size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height),
+                            )
+                        }
+                        .padding(start = 10.dp),
+                ) {
+                    Text(
+                        // SI SA CHE LA LINEA È COINVOLTA, non che lo sia questa
+                        // fermata: ATAC dichiara gli stop_ids in 3 avvisi su
+                        // 181. Dirlo con esattezza evita di far scendere
+                        // qualcuno dove il mezzo passa regolarmente.
+                        text = buildString {
+                            append(if (av.toccaQui) "${av.effetto} qui" else "${av.effetto} su un tratto del percorso")
+                            av.causa?.let { append(" · $it") }
+                            av.quando?.let { append(" · $it") }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = c.warn700,
+                    )
+                    Text(
+                        text = av.titolo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.neutral600,
+                    )
+                    av.dettaglio?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.neutral500,
+                        )
+                    }
+                }
+            }
+        }
+    }
     }
 }
 
