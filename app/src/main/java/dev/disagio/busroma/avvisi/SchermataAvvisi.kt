@@ -26,6 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.disagio.busroma.dati.Api
 import dev.disagio.busroma.dati.Avviso
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 
@@ -52,12 +55,23 @@ fun SchermataAvvisi(modifier: Modifier = Modifier) {
     }
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = "Avvisi",
                 style = MaterialTheme.typography.headlineMedium,
                 color = c.neutral900,
+                modifier = Modifier.weight(1f),
             )
+            // Il badge degli avvisi qui porterebbe dove siamo gia': si passa
+            // una lambda vuota. E' l'unica schermata in cui succede, e
+            // toglierlo del tutto avrebbe voluto dire una seconda versione
+            // delle azioni d'intestazione da tenere allineata.
+            AzioniIntestazione(apriAvvisi = {})
+        }
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp)) {
             Text(
                 text = "Deviazioni, sospensioni e modifiche di percorso dichiarate da ATAC. " +
                     "Prima quelle di oggi, poi i cantieri che vanno avanti da mesi.",

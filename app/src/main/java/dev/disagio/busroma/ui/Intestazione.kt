@@ -159,8 +159,14 @@ private fun BadgeAvvisi(apri: () -> Unit) {
  * correzione: se il worker si ferma o il feed ATAC si blocca, l'app continua a
  * ricaricare felicemente dati vecchi senza che nessuno se ne accorga.
  *
- * Sotto i 90 secondi non compare: la presenza della scritta e' essa stessa un
- * segnale.
+ * SI VEDE SEMPRE, anche a feed fresco, come sul web. Prima spariva sotto i 90
+ * secondi, ragionando che la presenza della scritta fosse essa stessa il
+ * segnale. Sbagliato, e si e' visto il giorno in cui ATAC ha smesso di
+ * pubblicare la flotta: nascosto vuol dire sia "tutto a posto" sia "la
+ * richiesta non e' riuscita", che sono due cose opposte, e l'unico modo di
+ * accorgersi del blackout e' stato che qualcuno notasse a mano l'assenza dei
+ * mezzi. Un pallino verde con l'orario costa sei pixel e toglie
+ * l'ambiguita': se non c'e' niente, non si sa; se c'e' un verde, si sa.
  */
 @Composable
 private fun StatoFeed() {
@@ -181,11 +187,23 @@ private fun StatoFeed() {
         }
     }
 
+    // Finche' non si sa niente non si dice niente: un indicatore che parte
+    // rosso al primo disegno mentirebbe per mezzo secondo a ogni schermata.
     val s = stantio ?: return
-    if (s < 90) return
 
-    val tinta = if (s < 300) c.warn600 else c.brand600
-    val pallino = if (s < 300) c.warn500 else c.brand500
+    // Le tre soglie sono quelle del web. Il verde e' scritto in grigio e non
+    // in verde: quando va tutto bene l'orario e' un dato di servizio, non una
+    // notizia, e non deve rubare l'occhio ai minuti degli autobus.
+    val pallino = when {
+        s < 90 -> c.live500
+        s < 300 -> c.warn500
+        else -> c.brand500
+    }
+    val tinta = when {
+        s < 90 -> c.neutral400
+        s < 300 -> c.warn600
+        else -> c.brand600
+    }
     val etichetta = if (s < 60) "${s}s fa" else "${Math.round(s / 60.0)} min fa"
 
     Row(verticalAlignment = Alignment.CenterVertically) {
