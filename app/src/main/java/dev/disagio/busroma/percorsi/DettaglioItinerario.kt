@@ -16,6 +16,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import dev.disagio.busroma.mappa.GeometriaItinerario
+import dev.disagio.busroma.mappa.MappaItinerario
+import dev.disagio.busroma.mappa.geometriaDi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,10 +70,27 @@ fun oraLocale(iso: String): String =
 fun DettaglioItinerario(
     opzione: OpzioneItinerario,
     aPiedi: OpzioneAPiedi?,
+    partenza: Pair<Double, Double>?,
+    arrivo: Pair<Double, Double>?,
     indietro: () -> Unit,
     apriFermata: (String) -> Unit,
 ) {
     val c = LocalPalette.current
+
+    // La geometria si costruisce all'APERTURA di questo itinerario e non con
+    // l'elenco: servono due chiamate per ogni tratta in mezzo, e farle per
+    // tutte e cinque le proposte significherebbe una ventina di richieste per
+    // disegnarne una sola.
+    var geometria by remember(opzione) { mutableStateOf<GeometriaItinerario?>(null) }
+    LaunchedEffect(opzione) {
+        geometria = try {
+            geometriaDi(opzione, partenza, arrivo)
+        } catch (e: Exception) {
+            // La mappa e' un di piu': se non si costruisce, l'itinerario
+            // scritto sotto risponde comunque alla domanda.
+            null
+        }
+    }
 
     Column(Modifier.padding(horizontal = 16.dp)) {
         Text(
@@ -112,6 +137,19 @@ fun DettaglioItinerario(
             )
         }
         HorizontalDivider(color = c.neutral300)
+
+        // Solo se copre TUTTO il viaggio: vedi GeometriaItinerario.completa.
+        geometria?.takeIf { it.completa }?.let { g ->
+            Spacer(Modifier.height(12.dp))
+            MappaItinerario(
+                geometria = g,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
 
         opzione.legs.forEachIndexed { i, tratta ->
             if (i > 0) HorizontalDivider(color = c.neutral200)

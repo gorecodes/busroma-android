@@ -92,6 +92,12 @@ fun SchermataPercorsi(
                 DettaglioItinerario(
                     opzione = aperta,
                     aPiedi = stato.piano?.walkOption,
+                    // I due capi del viaggio: le loro coordinate le sa solo
+                    // chi ha compilato il modulo, perche' /api/plan non le
+                    // rimanda indietro. Servono a chiudere il primo e
+                    // l'ultimo tratto a piedi sulla mappa.
+                    partenza = stato.da?.coordinate(),
+                    arrivo = stato.a?.coordinate(),
                     indietro = { vm.apri(null) },
                     apriFermata = apriFermata,
                 )

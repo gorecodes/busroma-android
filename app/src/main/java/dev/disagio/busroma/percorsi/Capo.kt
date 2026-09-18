@@ -46,3 +46,17 @@ fun LuogoTrovato.aCapo(): Capo? = when {
     lat != null && lon != null -> Capo.Luogo(lat, lon, label)
     else -> null
 }
+
+/**
+ * Le coordinate di un capo, se le ha.
+ *
+ * Una fermata scelta dalla ricerca non le porta con sé: il pianificatore la
+ * manda al server come identificativo ed è il server a risolverla. Per la
+ * mappa va bene così — se il viaggio comincia da una fermata, quella fermata
+ * è anche il capo di una tratta in mezzo, e le sue coordinate arrivano da lì.
+ */
+fun Capo.coordinate(): Pair<Double, Double>? = when (this) {
+    is Capo.MiaPosizione -> lat to lon
+    is Capo.Luogo -> lat to lon
+    is Capo.Fermata -> null
+}
