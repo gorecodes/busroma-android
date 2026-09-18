@@ -85,4 +85,16 @@ object Api {
             parameter("lat", lat)
             parameter("lon", lon)
         }.body()
+
+    /**
+     * Gli ARRIVI alle fermate vicine: cosa si puo' prendere adesso.
+     *
+     * Diverso da `fermateVicine`, che dice solo dove sono le paline. In strada
+     * la domanda e' la prima, e sul web la sezione "Qui intorno" mostra questa.
+     */
+    suspend fun arriviVicini(lat: Double, lon: Double): RispostaArriviVicini =
+        client.get("$base/api/nearby/arrivals") {
+            parameter("lat", lat)
+            parameter("lon", lon)
+        }.body()
 }

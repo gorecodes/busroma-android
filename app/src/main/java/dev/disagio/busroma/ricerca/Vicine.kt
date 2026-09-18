@@ -1,55 +1,49 @@
 package dev.disagio.busroma.ricerca
 
 import android.Manifest
-import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.disagio.busroma.arrivi.minutiDa
 import dev.disagio.busroma.dati.Api
-import dev.disagio.busroma.dati.FermataVicina
+import dev.disagio.busroma.dati.ArrivoVicino
 import dev.disagio.busroma.posizione.Posizione
-import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
 import kotlinx.coroutines.launch
 
-/**
- * Le fermate qui intorno.
- *
- * IL PERMESSO SI CHIEDE AL TOCCO, mai all'apertura. È la regola del web, e la
- * ragione è pratica: un'app di trasporti che chiede la posizione appena la
- * apri insegna a negare il permesso per riflesso, e poi non lo riottieni più.
- * Qui l'utente tocca un tasto che dice cosa fa, e il sistema chiede subito
- * dopo: il nesso fra la sua azione e la richiesta è evidente.
- *
- * La sezione vive sotto i preferiti nella schermata iniziale, non in una
- * pagina a parte: sono le due cose che servono senza digitare niente.
- */
 /**
  * Entrambi i permessi insieme: e' l'unico modo in cui Android mostra la scelta
  * fra "Precisa" e "Approssimata". Chiedendo solo quella fine il sistema non
@@ -61,33 +55,57 @@ private val PERMESSI = arrayOf(
     Manifest.permission.ACCESS_COARSE_LOCATION,
 )
 
+/** Oltre, la schermata iniziale diventa una lista infinita. */
+private const val QUANTI = 8
+
+/**
+ * Come ordinare. Distanza per prima, come sul web: in strada la domanda e'
+ * "quale fermata raggiungo", e solo dopo "quanto aspetto".
+ */
+private enum class Ordine(val etichetta: String) {
+    Distanza("Distanza"),
+    Attesa("Attesa"),
+}
+
 private sealed interface StatoVicine {
     object Riposo : StatoVicine
-    object Attesa : StatoVicine
-    data class Trovate(
-        val fermate: List<FermataVicina>,
-        /** Metri di incertezza della posizione usata, se noti. */
+    object InCorso : StatoVicine
+    data class Trovati(
+        val arrivi: List<ArrivoVicino>,
         val incertezzaM: Float? = null,
-        /** Minuti di età della posizione usata. */
         val etaMin: Int = 0,
     ) : StatoVicine
     data class Errore(val messaggio: String) : StatoVicine
 }
 
+/**
+ * "Qui intorno": gli ARRIVI alle fermate vicine, non l'elenco delle paline.
+ *
+ * La distinzione conta, ed era sbagliata nella prima versione. Mostrare le
+ * fermate risponde a "dove sono le paline"; chi e' in strada col telefono in
+ * mano si chiede "cosa posso prendere adesso". Sul web la sezione mostra gli
+ * arrivi, e i due ordinamenti servono a mediare fra le due domande.
+ *
+ * IL PERMESSO SI CHIEDE AL TOCCO, mai all'apertura: un'app di trasporti che
+ * chiede la posizione appena la apri insegna a negare il permesso per
+ * riflesso, e poi non lo riottieni piu'.
+ */
 @Composable
 fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
     val contesto = LocalContext.current
     val scope = rememberCoroutineScope()
     var stato by remember { mutableStateOf<StatoVicine>(StatoVicine.Riposo) }
+    var ordine by remember { mutableStateOf(Ordine.Distanza) }
+    // L'istante di calcolo dell'attesa: i minuti si ricalcolano da eta_ts e non
+    // si usa il campo `minutes` del server, che e' un'istantanea e invecchia
+    // sullo schermo.
+    var adesso by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     fun carica() {
-        stato = StatoVicine.Attesa
+        stato = StatoVicine.InCorso
         scope.launch {
             val pos = Posizione.corrente(contesto)
             if (pos == null) {
-                // Distinguere "permesso negato" da "posizione non arrivata" è
-                // importante: sono due problemi con due rimedi diversi, e un
-                // messaggio unico lascerebbe l'utente a indovinare.
                 stato = StatoVicine.Errore(
                     if (Posizione.permessoConcesso(contesto)) {
                         "Non riesco a leggere la posizione. Se sei al chiuso o in metro, capita."
@@ -97,23 +115,20 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                 )
                 return@launch
             }
+            adesso = System.currentTimeMillis()
             stato = try {
-                StatoVicine.Trovate(
-                    fermate = Api.fermateVicine(pos.latitude, pos.longitude).stops,
+                StatoVicine.Trovati(
+                    arrivi = Api.arriviVicini(pos.latitude, pos.longitude).arrivals,
                     incertezzaM = if (pos.hasAccuracy()) pos.accuracy else null,
                     etaMin = ((System.currentTimeMillis() - pos.time) / 60_000L)
                         .coerceAtLeast(0L).toInt(),
                 )
             } catch (e: Exception) {
-                StatoVicine.Errore("Le fermate vicine non arrivano.")
+                StatoVicine.Errore("Gli arrivi qui intorno non arrivano.")
             }
         }
     }
 
-    // Si chiedono ENTRAMBI i permessi insieme: e' l'unico modo in cui Android
-    // mostra all'utente la scelta fra "Precisa" e "Approssimata". Chiedendo
-    // solo quella fine il sistema non offrirebbe l'alternativa, e chiedendo
-    // solo l'approssimata non si potrebbe mai ottenere la precisa.
     val richiesta = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { esiti ->
@@ -124,6 +139,10 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                 "Senza posizione non posso dirti cosa hai intorno. Cerca la fermata per nome.",
             )
         }
+    }
+
+    fun chiediOCarica() {
+        if (Posizione.permessoConcesso(contesto)) carica() else richiesta.launch(PERMESSI)
     }
 
     Column {
@@ -138,10 +157,7 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                 color = c.neutral500,
                 modifier = Modifier.weight(1f),
             )
-            // AGGIORNA, e non solo nello stato di errore: l'avviso sulla
-            // posizione vecchia diceva "ricarica" e non c'era niente da
-            // toccare. Serve anche a chi si e' spostato di due fermate.
-            if (stato is StatoVicine.Trovate) {
+            if (stato is StatoVicine.Trovati) {
                 Text(
                     text = "Aggiorna",
                     style = MaterialTheme.typography.bodySmall,
@@ -157,59 +173,45 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
         }
 
         when (val s = stato) {
-            StatoVicine.Riposo -> Tasto("Usa la mia posizione", c) {
-                if (Posizione.permessoConcesso(contesto)) {
-                    carica()
-                } else {
-                    richiesta.launch(PERMESSI)
-                }
-            }
+            StatoVicine.Riposo -> Tasto("Usa la mia posizione", c, ::chiediOCarica)
 
-            StatoVicine.Attesa -> Nota("Cerco dove sei…", c)
+            StatoVicine.InCorso -> Nota("Cerco dove sei...", c)
 
             is StatoVicine.Errore -> Column {
                 Nota(s.messaggio, c)
-                Tasto("Riprova", c) {
-                    if (Posizione.permessoConcesso(contesto)) {
-                        carica()
-                    } else {
-                        richiesta.launch(PERMESSI)
-                    }
-                }
+                Tasto("Riprova", c, ::chiediOCarica)
             }
 
-            is StatoVicine.Trovate -> if (s.fermate.isEmpty()) {
-                Nota("Nessuna fermata nei paraggi. Complimenti, sei nel nulla.", c)
+            is StatoVicine.Trovati -> if (s.arrivi.isEmpty()) {
+                Nota("Nessun passaggio nei prossimi minuti qui intorno.", c)
             } else {
                 Column {
-                    // SI DICHIARA L'INCERTEZZA quando e' grande come il raggio
-                    // che stiamo interrogando: mostrare "271 m" calcolati su
-                    // una posizione sbagliata di un chilometro sarebbe una
-                    // precisione finta, e l'utente non ha modo di accorgersene.
-                    val incerta = s.incertezzaM != null &&
-                        s.incertezzaM > Posizione.INCERTEZZA_ACCETTABILE_M
-                    val vecchia = s.etaMin >= 5
-                    val avviso = when {
-                        incerta && vecchia ->
-                            "Posizione di ${s.etaMin} min fa e approssimata di circa " +
-                                "${s.incertezzaM!!.toInt()} m."
-                        incerta ->
-                            "Posizione approssimata di circa ${s.incertezzaM!!.toInt()} m: " +
-                                "l'ordine pu\u00f2 non essere esatto."
-                        vecchia ->
-                            "Posizione di ${s.etaMin} min fa: se ti sei spostato, ricarica."
-                        else -> null
-                    }
-                    if (avviso != null) {
+                    avviso(s)?.let { testo ->
                         Text(
-                            text = avviso,
+                            text = testo,
                             style = MaterialTheme.typography.bodySmall,
                             color = c.warn700,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
-                    s.fermate.take(8).forEach { f ->
-                        RigaVicina(f, c) { apri(f.stopId) }
+
+                    SceltaOrdine(ordine, c) { ordine = it }
+
+                    // Il secondo criterio a pareggio non e' un dettaglio: a
+                    // parita' di distanza si vuole il bus che arriva prima, e a
+                    // parita' di attesa quello piu' vicino. E' l'ordinamento
+                    // del web.
+                    val ordinati = when (ordine) {
+                        Ordine.Distanza -> s.arrivi.sortedWith(
+                            compareBy({ it.distanzaM ?: Int.MAX_VALUE }, { minuti(it, adesso) }),
+                        )
+                        Ordine.Attesa -> s.arrivi.sortedWith(
+                            compareBy({ minuti(it, adesso) }, { it.distanzaM ?: Int.MAX_VALUE }),
+                        )
+                    }
+
+                    ordinati.take(QUANTI).forEach { a ->
+                        RigaArrivoVicino(a, adesso, c) { apri(a.stopId) }
                         HorizontalDivider(color = c.neutral200)
                     }
                 }
@@ -218,47 +220,152 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
     }
 }
 
+private fun minuti(a: ArrivoVicino, adesso: Long) = minutiDa(a.etaTs, adesso) ?: Int.MAX_VALUE
+
+private fun avviso(s: StatoVicine.Trovati): String? {
+    val incerta = s.incertezzaM != null && s.incertezzaM > Posizione.INCERTEZZA_ACCETTABILE_M
+    val vecchia = s.etaMin >= 5
+    return when {
+        incerta && vecchia ->
+            "Posizione di ${s.etaMin} min fa e approssimata di circa ${s.incertezzaM!!.toInt()} m."
+        incerta ->
+            "Posizione approssimata di circa ${s.incertezzaM!!.toInt()} m: " +
+                "l'ordine può non essere esatto."
+        vecchia ->
+            "Posizione di ${s.etaMin} min fa: se ti sei spostato, aggiorna."
+        else -> null
+    }
+}
+
+/**
+ * I due ordini, come due parole e non come un menu: sono due, e un menu per
+ * due voci nasconde la scelta dietro un tocco in piu'.
+ */
 @Composable
-private fun RigaVicina(f: FermataVicina, c: Palette, apri: () -> Unit) {
-    Column(
+private fun SceltaOrdine(attuale: Ordine, c: Palette, scegli: (Ordine) -> Unit) {
+    Row(
+        Modifier.padding(start = 16.dp, top = 2.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Ordina per",
+            style = MaterialTheme.typography.bodySmall,
+            color = c.neutral500,
+        )
+        Ordine.entries.forEach { o ->
+            val scelto = o == attuale
+            Text(
+                text = o.etichetta,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (scelto) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (scelto) c.neutral50 else c.neutral600,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(if (scelto) c.neutral900 else Color.Transparent)
+                    .border(
+                        1.dp,
+                        if (scelto) c.neutral900 else c.neutral300,
+                        RoundedCornerShape(3.dp),
+                    )
+                    .clickable { scegli(o) }
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Una riga: linea, destinazione, fermata con distanza, attesa.
+ *
+ * Due informazioni in piu' rispetto alla schermata di una fermata - quale
+ * palina e quanto e' lontana - perche' qui l'utente non ha ancora scelto dove
+ * andare, e sono i due dati che gliela fanno scegliere.
+ */
+@Composable
+private fun RigaArrivoVicino(a: ArrivoVicino, adesso: Long, c: Palette, apri: () -> Unit) {
+    Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = apri)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = a.shortName,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = a.textColor?.let { colore(it) } ?: c.neutral100,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = Modifier
+                .width(44.dp)
+                .background(a.color?.let { colore(it) } ?: c.neutral900, RoundedCornerShape(3.dp))
+                .padding(vertical = 4.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
             Text(
-                text = f.name,
+                text = a.headsign ?: "Destinazione non indicata",
                 style = stileNome,
                 color = c.neutral900,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
             )
-            f.distanzaM?.let { m ->
-                // Metri e non minuti a piedi, di proposito: è una distanza in
-                // linea d'aria e tradurla in tempo sarebbe una promessa che
-                // non possiamo mantenere. Sul web quella confusione ha
-                // prodotto itinerari impossibili.
-                Text(
-                    text = if (m < 1000) "$m m" else "%.1f km".format(m / 1000.0),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = c.neutral500,
-                )
-            }
-        }
-        if (f.routes.isNotEmpty()) {
-            Spacer(Modifier.height(2.dp))
             Text(
-                text = f.routes.take(6).joinToString(" ") +
-                    if (f.routes.size > 6) " +${f.routes.size - 6}" else "",
+                text = a.stopName + (a.distanzaM?.let { " · $it m" } ?: ""),
                 style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = c.neutral600,
+                color = c.neutral500,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        Spacer(Modifier.width(8.dp))
+        AttesaBreve(a, adesso, c)
+    }
+}
+
+@Composable
+private fun AttesaBreve(a: ArrivoVicino, adesso: Long, c: Palette) {
+    val m = minutiDa(a.etaTs, adesso)
+    val colore = if (a.isRealtime) c.live600 else c.neutral700
+    Row(
+        Modifier.width(66.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (a.isRealtime) {
+            Box(Modifier.size(6.dp).background(c.live500, RoundedCornerShape(50)))
+            Spacer(Modifier.width(4.dp))
+        }
+        when {
+            m == null -> Text("—", style = MaterialTheme.typography.bodySmall, color = c.neutral400)
+            m <= 0 -> Text(
+                "ora",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colore,
+            )
+            else -> Row(verticalAlignment = Alignment.Bottom) {
+                Text("$m", style = MaterialTheme.typography.titleLarge, color = colore)
+                Text(
+                    " min",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colore,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+private fun colore(hex: String): Color? {
+    val pulito = hex.removePrefix("#")
+    if (pulito.length != 6) return null
+    return try {
+        Color(("ff$pulito").toLong(16))
+    } catch (e: Exception) {
+        null
     }
 }
 
@@ -288,6 +395,3 @@ private fun Nota(testo: String, c: Palette) {
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
     )
 }
-
-/** Serve a SchermataRicerca per sapere se mostrare il contesto. */
-fun permessoPosizione(context: Context) = Posizione.permessoConcesso(context)

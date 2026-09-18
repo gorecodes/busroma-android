@@ -40,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import dev.disagio.busroma.dati.FermataTrovata
+import dev.disagio.busroma.preferiti.CartaPreferito
 import dev.disagio.busroma.preferiti.FermataPreferita
 import dev.disagio.busroma.preferiti.Preferiti as DepositoPreferiti
 import dev.disagio.busroma.ui.Stella
@@ -256,29 +257,10 @@ private fun Preferiti(
         }
         // Nessuna stella di rimozione qui: togliere un preferito e' un'azione
         // di gestione, e la gestione ha la sua schermata. In home la riga fa
-        // una cosa sola, aprire la fermata.
+        // una cosa sola, aprire la fermata - e mostra i prossimi passaggi,
+        // che sono la ragione per cui i preferiti esistono.
         mostrati.forEach { f ->
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { apri(f.stopId) }
-                    .padding(horizontal = 16.dp, vertical = 11.dp),
-            ) {
-                Text(
-                    text = f.nome,
-                    style = stileNome,
-                    color = c.neutral900,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                f.palina?.let {
-                    Text(
-                        text = "palina $it",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.neutral500,
-                    )
-                }
-            }
+            CartaPreferito(f, c) { apri(f.stopId) }
             HorizontalDivider(color = c.neutral200)
         }
     }

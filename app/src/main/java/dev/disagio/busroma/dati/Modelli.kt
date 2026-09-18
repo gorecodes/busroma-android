@@ -101,3 +101,36 @@ data class FermataVicina(
     @SerialName("distance_m") val distanzaM: Int? = null,
     val routes: List<String> = emptyList(),
 )
+
+@Serializable
+data class RispostaArriviVicini(
+    val arrivals: List<ArrivoVicino> = emptyList(),
+)
+
+/**
+ * Un arrivo a una fermata vicina: e' un arrivo, non una fermata.
+ *
+ * Sul web la sezione "Qui intorno" mostra i BUS che stanno arrivando nelle
+ * vicinanze, non l'elenco delle paline: e' la differenza fra "dove sono le
+ * fermate" e "cosa posso prendere adesso", e la seconda e' la domanda che si
+ * fa uno in strada.
+ */
+@Serializable
+data class ArrivoVicino(
+    @SerialName("route_id") val routeId: String,
+    @SerialName("short_name") val shortName: String,
+    val headsign: String? = null,
+    @SerialName("direction_id") val directionId: Int? = null,
+    @SerialName("eta_ts") val etaTs: String,
+    /** Istantanea del server: per mostrare si ricalcola da etaTs. */
+    val minutes: Int? = null,
+    @SerialName("is_realtime") val isRealtime: Boolean = false,
+    val delay: Int? = null,
+    @SerialName("stop_id") val stopId: String,
+    @SerialName("stop_name") val stopName: String,
+    @SerialName("stop_code") val stopCode: String? = null,
+    /** In linea d'aria: serve a ordinare, non a dire quanto ci metti a piedi. */
+    @SerialName("distance_m") val distanzaM: Int? = null,
+    val color: String? = null,
+    @SerialName("text_color") val textColor: String? = null,
+)
