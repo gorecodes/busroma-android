@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema minimo: l'aspetto lo decide Compose, questo serve solo a dare
+         all'activity uno sfondo e a togliere la ActionBar di sistema. -->
+    <style name="Theme.BusRoma" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
