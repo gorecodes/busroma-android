@@ -259,3 +259,38 @@ fun PuntaGiu(colore: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * Un cronometro: il glifo della sezione Ritardi, ricalcato su `DelayGlyph`
+ * del web. Non un orologio da parete — il cronometro dice "tempo misurato",
+ * che è esattamente quello che quella schermata fa.
+ */
+@Composable
+fun Cronometro(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        fun p(v: Float) = v / 20f * l
+        val sp = p(1.7f)
+        drawCircle(colore, radius = p(7f), center = Offset(p(10f), p(10.6f)), style = Stroke(sp))
+        // Le lancette: dal centro in su, poi verso destra.
+        val lancette = Path().apply {
+            moveTo(p(10f), p(6.8f))
+            lineTo(p(10f), p(10.8f))
+            lineTo(p(12.6f), p(12.5f))
+        }
+        drawPath(
+            lancette,
+            colore,
+            style = Stroke(width = sp, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round),
+        )
+        // Il pulsantino in cima, che lo distingue da un orologio qualunque.
+        drawLine(
+            colore,
+            Offset(p(7.4f), p(2.6f)),
+            Offset(p(12.6f), p(2.6f)),
+            strokeWidth = sp,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+    }
+}

@@ -128,6 +128,15 @@ object Api {
             parameter("stop", stopId)
         }.body()
 
+    /**
+     * Le statistiche di puntualita' per linea.
+     *
+     * Nessuno le pubblica: le conta il nostro server sul feed ATAC, una riga
+     * per corsa per fascia oraria.
+     */
+    suspend fun ritardi(): RispostaRitardi =
+        client.get("$base/api/stats/delays").body()
+
     /** Gli avvisi delle linee che servono una fermata. */
     suspend fun avvisiFermata(stopId: String): RispostaAvvisi =
         client.get("$base/api/alerts") { parameter("stop", stopId) }.body()

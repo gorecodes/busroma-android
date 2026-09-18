@@ -20,6 +20,7 @@ import dev.disagio.busroma.corsa.SchermataCorsa
 import dev.disagio.busroma.linea.SchermataLinea
 import dev.disagio.busroma.percorsi.SchermataPercorsi
 import dev.disagio.busroma.preferiti.SchermataPreferiti
+import dev.disagio.busroma.ritardi.SchermataRitardi
 import dev.disagio.busroma.ricerca.SchermataRicerca
 import dev.disagio.busroma.ui.NavigazioneBasso
 import dev.disagio.busroma.ui.Sezione
@@ -51,6 +52,9 @@ data class LineaRotta(val routeId: String, val verso: Int? = null)
 object Percorsi
 
 @Serializable
+object Ritardi
+
+@Serializable
 object Avvisi
 
 @Serializable
@@ -78,6 +82,7 @@ fun AppBusRoma() {
     val sezione: Sezione? = when {
         destinazione?.hasRoute<Preferiti>() == true -> Sezione.Preferiti
         destinazione?.hasRoute<Percorsi>() == true -> Sezione.Percorsi
+        destinazione?.hasRoute<Ritardi>() == true -> Sezione.Ritardi
         destinazione?.hasRoute<Ricerca>() == true -> Sezione.Fermate
         else -> null
     }
@@ -115,6 +120,9 @@ fun AppBusRoma() {
                     apriFermata = { stopId -> nav.navigate(Arrivi(stopId)) },
                     apriAvvisi = { nav.navigate(Avvisi) },
                 )
+            }
+            composable<Ritardi> {
+                SchermataRitardi(apriAvvisi = { nav.navigate(Avvisi) })
             }
             composable<Avvisi> { SchermataAvvisi() }
             composable<Corsa> { v ->
@@ -171,6 +179,10 @@ fun AppBusRoma() {
                     launchSingleTop = true
                 }
                 Sezione.Percorsi -> nav.navigate(Percorsi) {
+                    popUpTo(Ricerca)
+                    launchSingleTop = true
+                }
+                Sezione.Ritardi -> nav.navigate(Ritardi) {
                     popUpTo(Ricerca)
                     launchSingleTop = true
                 }

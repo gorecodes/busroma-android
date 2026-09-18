@@ -30,17 +30,18 @@ import dev.disagio.busroma.ui.theme.LocalPalette
  * Alte 56dp più l'area di sicurezza, con l'etichetta sotto l'icona: un glifo
  * da solo è ambiguo.
  *
- * PER ORA TRE VOCI, non quattro: manca Ritardi. Una voce che porta a una
- * schermata vuota sarebbe peggio di una voce assente, quindi si aggiunge
- * quando la schermata esiste.
+ * TUTTE E QUATTRO, finalmente: l'ultima ad arrivare e' stata Ritardi, e non
+ * era li' prima perche' una voce che porta a una schermata vuota e' peggio di
+ * una voce assente.
  *
- * L'ORDINE E' QUELLO DEL WEB - Fermate, Percorsi, Preferiti - e non e' un
- * dettaglio: chi usa entrambi impara la posizione col pollice, non
+ * L'ORDINE E' QUELLO DEL WEB - Fermate, Percorsi, Ritardi, Preferiti - e non
+ * e' un dettaglio: chi usa entrambi impara la posizione col pollice, non
  * l'etichetta, e invertirne due farebbe sbagliare bersaglio.
  */
 enum class Sezione(val etichetta: String) {
     Fermate("Fermate"),
     Percorsi("Percorsi"),
+    Ritardi("Ritardi"),
     Preferiti("Preferiti"),
 }
 
@@ -92,6 +93,7 @@ fun NavigazioneBasso(
                     when (s) {
                         Sezione.Fermate -> Palina(colore, Modifier.size(22.dp))
                         Sezione.Percorsi -> Percorso(colore, Modifier.size(22.dp))
+                        Sezione.Ritardi -> Cronometro(colore, Modifier.size(22.dp))
                         Sezione.Preferiti -> Stella(scelta, colore, Modifier.size(22.dp))
                     }
                     Spacer(Modifier.height(3.dp))

@@ -464,3 +464,40 @@ data class PassaggioLinea(
 data class RispostaPassaggiLinea(
     val arrivals: List<PassaggioLinea> = emptyList(),
 )
+
+// ---------------------------------------------------------------------------
+// RITARDI
+//
+// Il conteggio lo fa il server, una riga per corsa per fascia oraria. Qui
+// arrivano solo le linee che hanno superato la soglia di campione.
+// ---------------------------------------------------------------------------
+
+@Serializable
+data class PeriodoRitardi(
+    val dal: String? = null,
+    val al: String? = null,
+    /** Corse osservate in tutto: e' il campione, e va dichiarato. */
+    val corse: Int = 0,
+    val ore: Int = 0,
+)
+
+@Serializable
+data class LineaRitardo(
+    @SerialName("short_name") val shortName: String,
+    val color: String? = null,
+    @SerialName("text_color") val textColor: String? = null,
+    val corse: Int = 0,
+    /** Scostamento medio in secondi: positivo e' ritardo, negativo anticipo. */
+    @SerialName("media_s") val mediaS: Int = 0,
+    /** Percentuale di corse oltre i 5 minuti. */
+    @SerialName("perc_ritardo") val percRitardo: Int = 0,
+    @SerialName("peggiore_s") val peggioreS: Int = 0,
+)
+
+@Serializable
+data class RispostaRitardi(
+    val periodo: PeriodoRitardi = PeriodoRitardi(),
+    /** Soglia di corse sotto la quale una linea non compare. */
+    val minCorse: Int = 0,
+    val linee: List<LineaRitardo> = emptyList(),
+)
