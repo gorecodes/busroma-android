@@ -67,7 +67,7 @@ fun AppBusRoma() {
     val voce by nav.currentBackStackEntryAsState()
     val destinazione = voce?.destination
 
-    val sezione = when {
+    val sezione: Sezione? = when {
         destinazione?.hasRoute<Preferiti>() == true -> Sezione.Preferiti
         destinazione?.hasRoute<Ricerca>() == true -> Sezione.Fermate
         else -> null
@@ -119,18 +119,33 @@ fun AppBusRoma() {
             }
         }
 
-        if (sezione != null) {
-            NavigazioneBasso(attiva = sezione) { scelta ->
-                when (scelta) {
-                    // launchSingleTop: toccare due volte la stessa voce non
-                    // impila due copie della schermata.
-                    Sezione.Fermate -> nav.navigate(Ricerca) {
-                        popUpTo(Ricerca) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                    Sezione.Preferiti -> nav.navigate(Preferiti) {
-                        launchSingleTop = true
-                    }
+        // SEMPRE VISIBILE, su ogni schermata, come sul web.
+        //
+        // Prima la nascondevo sulle schermate di dettaglio, ragionando che su
+        // Android l'uscita e' l'indietro di sistema e due modi di andarsene
+        // sarebbero rumore. Sbagliato per due motivi: rompe la parita' col
+        // web, e soprattutto toglie una cosa utile - dalla pagina di una
+        // fermata si salta ai Preferiti senza dover prima tornare indietro.
+        // Sulle schermate di dettaglio nessuna voce risulta accesa, che e'
+        // esattamente quello che fa il web.
+        NavigazioneBasso(attiva = sezione) { scelta ->
+            // popUpTo(Ricerca) NON inclusivo, e launchSingleTop: si torna alla
+            // schermata Ricerca che esiste gia' invece di ricrearla, quindi il
+            // testo cercato e i risultati sopravvivono. Con `inclusive = true`
+            // la si distruggeva e si ripartiva da un campo vuoto - la stessa
+            // perdita di stato di cui l'utente si era lamentato sul web.
+            //
+            // Vale anche per Preferiti: cosi' la pila resta bassa
+            // (Ricerca -> Preferiti) invece di impilarsi sopra la fermata da
+            // cui si e' partiti.
+            when (scelta) {
+                Sezione.Fermate -> nav.navigate(Ricerca) {
+                    popUpTo(Ricerca)
+                    launchSingleTop = true
+                }
+                Sezione.Preferiti -> nav.navigate(Preferiti) {
+                    popUpTo(Ricerca)
+                    launchSingleTop = true
                 }
             }
         }

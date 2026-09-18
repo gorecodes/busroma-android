@@ -60,35 +60,41 @@ fun Stella(
 }
 
 /**
- * La palina: palo verticale con la targhetta in cima. È il glifo della
- * sezione "Fermate", e sul web è `StopGlyph`.
+ * La palina: targhetta larga in cima, palo che scende dal centro, base.
+ *
+ * Le proporzioni sono quelle di `StopGlyph` sul web, e non sono un vezzo: la
+ * prima versione aveva la targhetta piccola a sinistra e il palo a destra, e a
+ * ventidue pixel si leggeva come una BANDIERINA. La targhetta larga sopra il
+ * palo centrato e' cio' che la rende riconoscibile come insegna di fermata.
  */
 @Composable
 fun Palina(colore: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val l = min(size.width, size.height)
-        val spessore = l * 0.08f
-        // Targhetta: un rettangolo nella metà superiore, spostato a sinistra
-        // perché il palo passa a destra - come le paline vere.
+        val spessore = l * 0.085f
+        // Targhetta: larga, nella parte alta.
         drawRoundRect(
             color = colore,
-            topLeft = Offset(l * 0.12f, l * 0.13f),
-            size = androidx.compose.ui.geometry.Size(l * 0.58f, l * 0.36f),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(l * 0.06f),
+            topLeft = Offset(l * 0.18f, l * 0.13f),
+            size = androidx.compose.ui.geometry.Size(l * 0.64f, l * 0.36f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(l * 0.07f),
             style = Stroke(width = spessore),
         )
-        // Palo e base.
+        // Palo, dal centro della targhetta verso il basso.
         drawLine(
             color = colore,
-            start = Offset(l * 0.70f, l * 0.13f),
-            end = Offset(l * 0.70f, l * 0.87f),
+            start = Offset(l * 0.50f, l * 0.49f),
+            end = Offset(l * 0.50f, l * 0.87f),
             strokeWidth = spessore,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
         )
+        // Base.
         drawLine(
             color = colore,
-            start = Offset(l * 0.50f, l * 0.87f),
-            end = Offset(l * 0.90f, l * 0.87f),
+            start = Offset(l * 0.32f, l * 0.87f),
+            end = Offset(l * 0.68f, l * 0.87f),
             strokeWidth = spessore,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
         )
     }
 }

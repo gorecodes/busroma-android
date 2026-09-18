@@ -41,7 +41,13 @@ enum class Sezione(val etichetta: String) {
 
 @Composable
 fun NavigazioneBasso(
-    attiva: Sezione,
+    /**
+     * Nessuna sezione attiva sulle schermate di dettaglio - fermata, linea,
+     * avvisi - dove non ci si trova in nessuna delle destinazioni principali.
+     * E' lo stesso comportamento del web, dove `path.startsWith` non combacia
+     * con niente su `/stop/123` e la barra resta tutta spenta.
+     */
+    attiva: Sezione?,
     vaiA: (Sezione) -> Unit,
 ) {
     val c = LocalPalette.current
