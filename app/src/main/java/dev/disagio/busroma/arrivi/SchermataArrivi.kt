@@ -2,6 +2,7 @@ package dev.disagio.busroma.arrivi
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SchermataArrivi(
     stopId: String,
+    apriCorsa: (String) -> Unit,
     apriAvvisi: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -171,7 +173,7 @@ fun SchermataArrivi(
             )
             else -> LazyColumn {
                 items(stato.arrivi, key = { "${it.routeId}-${it.directionId}-${it.etaTs}" }) { a ->
-                    RigaArrivo(a, stato.adesso, c)
+                    RigaArrivo(a, stato.adesso, c, apriCorsa)
                     HorizontalDivider(color = c.neutral200)
                 }
             }
@@ -180,10 +182,18 @@ fun SchermataArrivi(
 }
 
 @Composable
-private fun RigaArrivo(a: Arrivo, adesso: Long, c: Palette) {
+private fun RigaArrivo(a: Arrivo, adesso: Long, c: Palette, apriCorsa: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // Cliccabile SOLO con un trip_id: senza, non c'e' una corsa da
+            // aprire - l'arrivo viene dalla tabella e non da un mezzo. Una
+            // riga che a volte reagisce e a volte no e' peggio di una inerte,
+            // quindi il tocco si abilita solo dove porta da qualche parte.
+            .then(
+                if (a.tripId != null) Modifier.clickable { apriCorsa(a.tripId) }
+                else Modifier,
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

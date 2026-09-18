@@ -263,3 +263,40 @@ data class Avviso(
     val lineeQui: List<String> = emptyList(),
     val toccaQui: Boolean = false,
 )
+
+@Serializable
+data class RispostaCorsa(
+    val route: Linea? = null,
+    /**
+     * Nullo quando la corsa e' in tabella ma nessun mezzo la sta segnalando.
+     * Sul web questo caso ha un nome: "mezzo fantasma". Dirlo e' meglio che
+     * mostrare una pagina identica a quella di un mezzo tracciato.
+     */
+    val vehicle: MezzoCorsa? = null,
+    val stops: List<FermataCorsa> = emptyList(),
+    val headsign: String? = null,
+    @SerialName("direction_id") val directionId: Int? = null,
+)
+
+@Serializable
+data class MezzoCorsa(
+    @SerialName("vehicle_id") val vehicleId: String,
+    val lat: Double,
+    val lon: Double,
+    val bearing: Double? = null,
+    /** Quando ATAC ha visto il mezzo: serve a dire se il dato e' fresco. */
+    val ts: String? = null,
+)
+
+@Serializable
+data class FermataCorsa(
+    @SerialName("stop_id") val stopId: String,
+    val name: String,
+    val code: String? = null,
+    @SerialName("stop_sequence") val sequenza: Int,
+    /** Nullo su qualche fermata: il feed non sempre le copre tutte. */
+    @SerialName("eta_ts") val etaTs: String? = null,
+    val delay: Int? = null,
+    val lon: Double = 0.0,
+    val lat: Double = 0.0,
+)

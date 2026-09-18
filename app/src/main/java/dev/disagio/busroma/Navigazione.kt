@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.disagio.busroma.arrivi.SchermataArrivi
 import dev.disagio.busroma.avvisi.SchermataAvvisi
+import dev.disagio.busroma.corsa.SchermataCorsa
 import dev.disagio.busroma.linea.SchermataLinea
 import dev.disagio.busroma.preferiti.SchermataPreferiti
 import dev.disagio.busroma.ricerca.SchermataRicerca
@@ -47,6 +48,9 @@ data class LineaRotta(val routeId: String, val verso: Int? = null)
 
 @Serializable
 object Avvisi
+
+@Serializable
+data class Corsa(val tripId: String)
 
 /**
  * L'albero di navigazione, con la barra in basso.
@@ -102,10 +106,19 @@ fun AppBusRoma() {
                 )
             }
             composable<Avvisi> { SchermataAvvisi() }
+            composable<Corsa> { v ->
+                val rotta: Corsa = v.toRoute()
+                SchermataCorsa(
+                    tripId = rotta.tripId,
+                    apriFermata = { stopId -> nav.navigate(Arrivi(stopId)) },
+                    apriAvvisi = { nav.navigate(Avvisi) },
+                )
+            }
             composable<Arrivi> { v ->
                 val rotta: Arrivi = v.toRoute()
                 SchermataArrivi(
                     stopId = rotta.stopId,
+                    apriCorsa = { tripId -> nav.navigate(Corsa(tripId)) },
                     apriAvvisi = { nav.navigate(Avvisi) },
                 )
             }

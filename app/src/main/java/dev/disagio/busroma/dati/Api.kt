@@ -75,6 +75,17 @@ object Api {
     suspend fun arrivi(stopId: String): RispostaArrivi =
         client.get("$base/api/stops/${stopId.encodeURLPathPart()}/arrivals").body()
 
+    /**
+     * Una singola corsa: le sue fermate con gli orari, e il mezzo se c'e'.
+     *
+     * Gli identificativi di corsa contengono un cancelletto ("0#4692-12"),
+     * quindi la codifica del percorso non e' un'ipotesi di scuola: senza,
+     * tutto dopo il cancelletto verrebbe letto come frammento e la richiesta
+     * arriverebbe troncata.
+     */
+    suspend fun corsa(tripId: String): RispostaCorsa =
+        client.get("$base/api/trips/${tripId.encodeURLPathPart()}").body()
+
     /** Freschezza del feed ATAC: non del browser, del worker. */
     suspend fun statoFeed(): StatoFeedDto =
         client.get("$base/api/status").body()
