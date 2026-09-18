@@ -8,6 +8,8 @@ activityCompose = "1.13.0"
 lifecycle = "2.11.0"
 ktor = "3.6.0"
 serialization = "1.11.0"
+navigation = "2.10.1"
+datastore = "1.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -24,6 +26,9 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 # Serve a repeatOnLifecycle: senza, il polling continuerebbe in background.
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 # Ktor: client HTTP. Il motore OkHttp e' quello che Android usa comunque sotto.
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
