@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
@@ -60,19 +61,30 @@ private val ALTEZZA_RIGA = 64.dp
  * sta qui.
  */
 @Composable
-fun SchermataPreferiti(apri: (String) -> Unit, modifier: Modifier = Modifier) {
+fun SchermataPreferiti(
+    apri: (String) -> Unit,
+    apriAvvisi: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val c = LocalPalette.current
     val contesto = LocalContext.current
     val scope = rememberCoroutineScope()
     val salvati by Preferiti.flusso(contesto).collectAsStateWithLifecycle(emptyList())
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = "Preferiti",
                 style = MaterialTheme.typography.headlineMedium,
                 color = c.neutral900,
+                modifier = Modifier.weight(1f),
             )
+            AzioniIntestazione(apriAvvisi)
+        }
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp)) {
             if (salvati.isNotEmpty()) {
                 Text(
                     text = "Tieni premuto e trascina per riordinare · tocca la stella per rimuovere.",

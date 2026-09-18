@@ -55,6 +55,7 @@ import dev.disagio.busroma.dati.FermataTrovata
 import dev.disagio.busroma.preferiti.CartaPreferito
 import dev.disagio.busroma.preferiti.FermataPreferita
 import dev.disagio.busroma.preferiti.Preferiti as DepositoPreferiti
+import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
@@ -76,6 +77,7 @@ fun SchermataRicerca(
     apriFermata: (stopId: String) -> Unit,
     apriLinea: (routeId: String, verso: Int?) -> Unit,
     apriPreferiti: () -> Unit,
+    apriAvvisi: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val vm: RicercaViewModel = viewModel()
@@ -92,13 +94,19 @@ fun SchermataRicerca(
     var toccato by remember { mutableStateOf(false) }
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = "Fermate",
                 style = MaterialTheme.typography.headlineMedium,
                 color = c.neutral900,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.height(10.dp))
+            AzioniIntestazione(apriAvvisi)
+        }
+        Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp)) {
             CampoRicerca(stato.testo, vm::scrivi, c) { toccato = true }
         }
 

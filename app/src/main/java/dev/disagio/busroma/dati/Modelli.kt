@@ -223,3 +223,43 @@ data class Mezzo(
      */
     @SerialName("next_stop_id") val nextStopId: String? = null,
 )
+
+@Serializable
+data class StatoFeedDto(
+    @SerialName("last_fetch") val ultimoAggiornamento: String? = null,
+    /** Secondi da quando ATAC ha aggiornato: sopra 90 qualcosa non va. */
+    @SerialName("stale_s") val stantioS: Int? = null,
+)
+
+@Serializable
+data class RispostaAvvisi(
+    val avvisi: List<Avviso> = emptyList(),
+    val urgenti: Int = 0,
+)
+
+/**
+ * Un avviso di servizio, GIA' NORMALIZZATO DAL SERVER.
+ *
+ * Il client non ripete nessuna delle scelte fatte lato web: la distinzione fra
+ * urgente e strutturale (durata sotto i due giorni), la pulizia delle
+ * virgolette Windows e delle entita' HTML, lo scarto degli avvisi scaduti,
+ * l'intersezione delle linee con la fermata. Tutto questo vive in
+ * /api/alerts, e il client riceve testo pronto da mostrare.
+ *
+ * E' il "client stupido" del piano applicato al caso piu' delicato: se un
+ * domani la classificazione cambia, l'app installata non va aggiornata.
+ */
+@Serializable
+data class Avviso(
+    val id: String,
+    val titolo: String,
+    val dettaglio: String? = null,
+    val effetto: String,
+    val causa: String? = null,
+    /** Dura un giorno: e' la notizia di oggi, non un cantiere di sei mesi. */
+    val urgente: Boolean = false,
+    val quando: String? = null,
+    val linee: List<String> = emptyList(),
+    val lineeQui: List<String> = emptyList(),
+    val toccaQui: Boolean = false,
+)

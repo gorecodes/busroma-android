@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import dev.disagio.busroma.dati.Arrivo
 import dev.disagio.busroma.preferiti.FermataPreferita
 import dev.disagio.busroma.preferiti.Preferiti
+import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
@@ -61,7 +62,11 @@ import kotlinx.coroutines.launch
  *   più lunghi di qualunque schermo.
  */
 @Composable
-fun SchermataArrivi(stopId: String, modifier: Modifier = Modifier) {
+fun SchermataArrivi(
+    stopId: String,
+    apriAvvisi: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val vm: ArriviViewModel = viewModel(key = stopId) { ArriviViewModel(stopId) }
     val stato by vm.stato.collectAsStateWithLifecycle()
     val c = LocalPalette.current
@@ -124,6 +129,7 @@ fun SchermataArrivi(stopId: String, modifier: Modifier = Modifier) {
                     )
                 }
             }
+            AzioniIntestazione(apriAvvisi)
         }
 
         Column(Modifier.padding(horizontal = 16.dp)) {

@@ -43,6 +43,7 @@ import dev.disagio.busroma.dati.Mezzo
 import dev.disagio.busroma.dati.Verso
 import dev.disagio.busroma.dati.etichettaTipo
 import dev.disagio.busroma.dati.nomeLinea
+import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
@@ -71,7 +72,12 @@ private const val VICINANZA_M = 500.0
  * li' adesso.
  */
 @Composable
-fun SchermataLinea(routeId: String, versoIniziale: Int?, modifier: Modifier = Modifier) {
+fun SchermataLinea(
+    routeId: String,
+    versoIniziale: Int?,
+    apriAvvisi: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val c = LocalPalette.current
 
     var linea by remember(routeId) { mutableStateOf<Linea?>(null) }
@@ -126,7 +132,7 @@ fun SchermataLinea(routeId: String, versoIniziale: Int?, modifier: Modifier = Mo
     val perFermata = remember(mezzi, fermate) { mezziPerFermata(mezzi, fermate) }
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
-        Intestazione(linea, mezzi.size, c)
+        Intestazione(linea, mezzi.size, c, apriAvvisi)
 
         if (versi.size > 1 && verso != null) {
             SceltaVerso(versi, verso!!, c) { verso = it }
@@ -151,7 +157,12 @@ fun SchermataLinea(routeId: String, versoIniziale: Int?, modifier: Modifier = Mo
 }
 
 @Composable
-private fun Intestazione(linea: Linea?, quantiMezzi: Int, c: Palette) {
+private fun Intestazione(
+    linea: Linea?,
+    quantiMezzi: Int,
+    c: Palette,
+    apriAvvisi: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -200,6 +211,7 @@ private fun Intestazione(linea: Linea?, quantiMezzi: Int, c: Palette) {
                 color = if (quantiMezzi > 0) c.live600 else c.neutral500,
             )
         }
+        AzioniIntestazione(apriAvvisi)
     }
 }
 

@@ -25,9 +25,9 @@ import androidx.core.view.WindowCompat
 @Composable
 fun TemaBusRoma(
     /**
-     * Forza chiaro o scuro ignorando il sistema. Serve per il tasto di
-     * cambio tema, che sul web esiste e qui arriverà: il parametro c'è da
-     * subito così aggiungerlo non significa toccare il tema.
+     * Forza chiaro o scuro ignorando il sistema. È il tasto di cambio tema:
+     * il parametro c'era da prima che il tasto esistesse, proprio perché
+     * aggiungerlo non dovesse significare toccare il tema.
      */
     scura: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,

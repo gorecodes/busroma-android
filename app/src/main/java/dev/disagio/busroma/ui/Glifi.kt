@@ -92,3 +92,66 @@ fun Palina(colore: Color, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Triangolo d'avviso: il segno universale, leggibile a tredici pixel. */
+@Composable
+fun Triangolo(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        val sp = l * 0.11f
+        val percorso = Path().apply {
+            moveTo(l / 2f, l * 0.13f)
+            lineTo(l * 0.93f, l * 0.85f)
+            lineTo(l * 0.07f, l * 0.85f)
+            close()
+        }
+        drawPath(percorso, colore, style = Stroke(width = sp))
+        drawLine(
+            colore,
+            Offset(l / 2f, l * 0.40f),
+            Offset(l / 2f, l * 0.62f),
+            strokeWidth = sp,
+        )
+        drawCircle(colore, radius = sp * 0.6f, center = Offset(l / 2f, l * 0.73f))
+    }
+}
+
+/** Luna: in tema chiaro, dice che premendo si passa a scuro. */
+@Composable
+fun Luna(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        // Due cerchi: uno pieno e uno che lo scava. Con drawCircle in
+        // sottrazione la falce viene senza costruire un percorso a mano.
+        drawCircle(colore, radius = l * 0.42f, center = Offset(l * 0.52f, l * 0.50f))
+        drawCircle(
+            androidx.compose.ui.graphics.Color.Transparent,
+            radius = l * 0.36f,
+            center = Offset(l * 0.74f, l * 0.34f),
+            blendMode = androidx.compose.ui.graphics.BlendMode.Clear,
+        )
+    }
+}
+
+/** Sole: in tema scuro, dice che premendo si passa a chiaro. */
+@Composable
+fun Sole(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        val sp = l * 0.09f
+        val centro = Offset(l / 2f, l / 2f)
+        drawCircle(colore, radius = l * 0.22f, center = centro, style = Stroke(width = sp))
+        // Otto raggi, uno ogni 45 gradi.
+        for (i in 0 until 8) {
+            val a = (i * PI / 4).toFloat()
+            val da = l * 0.32f
+            val a2 = l * 0.45f
+            drawLine(
+                colore,
+                Offset(centro.x + da * cos(a), centro.y + da * sin(a)),
+                Offset(centro.x + a2 * cos(a), centro.y + a2 * sin(a)),
+                strokeWidth = sp,
+            )
+        }
+    }
+}

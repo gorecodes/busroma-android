@@ -75,6 +75,22 @@ object Api {
     suspend fun arrivi(stopId: String): RispostaArrivi =
         client.get("$base/api/stops/${stopId.encodeURLPathPart()}/arrivals").body()
 
+    /** Freschezza del feed ATAC: non del browser, del worker. */
+    suspend fun statoFeed(): StatoFeedDto =
+        client.get("$base/api/status").body()
+
+    /** Tutti gli avvisi attivi. */
+    suspend fun avvisi(): RispostaAvvisi =
+        client.get("$base/api/alerts").body()
+
+    /** Gli avvisi delle linee che servono una fermata. */
+    suspend fun avvisiFermata(stopId: String): RispostaAvvisi =
+        client.get("$base/api/alerts") { parameter("stop", stopId) }.body()
+
+    /** Gli avvisi di una linea. */
+    suspend fun avvisiLinea(routeId: String): RispostaAvvisi =
+        client.get("$base/api/alerts") { parameter("route", routeId) }.body()
+
     /** Anagrafica della linea e i suoi versi. */
     suspend fun linea(routeId: String): RispostaLinea =
         client.get("$base/api/routes/${routeId.encodeURLPathPart()}").body()

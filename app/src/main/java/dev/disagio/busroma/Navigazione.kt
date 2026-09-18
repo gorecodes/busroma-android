@@ -15,6 +15,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.disagio.busroma.arrivi.SchermataArrivi
+import dev.disagio.busroma.avvisi.SchermataAvvisi
 import dev.disagio.busroma.linea.SchermataLinea
 import dev.disagio.busroma.preferiti.SchermataPreferiti
 import dev.disagio.busroma.ricerca.SchermataRicerca
@@ -43,6 +44,9 @@ data class Arrivi(val stopId: String)
 
 @Serializable
 data class LineaRotta(val routeId: String, val verso: Int? = null)
+
+@Serializable
+object Avvisi
 
 /**
  * L'albero di navigazione, con la barra in basso.
@@ -88,18 +92,30 @@ fun AppBusRoma() {
                     apriFermata = { stopId -> nav.navigate(Arrivi(stopId)) },
                     apriLinea = { routeId, verso -> nav.navigate(LineaRotta(routeId, verso)) },
                     apriPreferiti = { nav.navigate(Preferiti) },
+                    apriAvvisi = { nav.navigate(Avvisi) },
                 )
             }
             composable<Preferiti> {
-                SchermataPreferiti(apri = { stopId -> nav.navigate(Arrivi(stopId)) })
+                SchermataPreferiti(
+                    apri = { stopId -> nav.navigate(Arrivi(stopId)) },
+                    apriAvvisi = { nav.navigate(Avvisi) },
+                )
             }
+            composable<Avvisi> { SchermataAvvisi() }
             composable<Arrivi> { v ->
                 val rotta: Arrivi = v.toRoute()
-                SchermataArrivi(stopId = rotta.stopId)
+                SchermataArrivi(
+                    stopId = rotta.stopId,
+                    apriAvvisi = { nav.navigate(Avvisi) },
+                )
             }
             composable<LineaRotta> { v ->
                 val rotta: LineaRotta = v.toRoute()
-                SchermataLinea(routeId = rotta.routeId, versoIniziale = rotta.verso)
+                SchermataLinea(
+                    routeId = rotta.routeId,
+                    versoIniziale = rotta.verso,
+                    apriAvvisi = { nav.navigate(Avvisi) },
+                )
             }
         }
 
