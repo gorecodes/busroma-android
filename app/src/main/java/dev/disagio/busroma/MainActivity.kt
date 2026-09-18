@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.TemaBusRoma
+import dev.disagio.busroma.ui.theme.stileNome
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,10 +81,13 @@ private fun Campionario(modifier: Modifier = Modifier) {
                 .border(1.dp, c.neutral300, RoundedCornerShape(6.dp))
                 .padding(12.dp),
         ) {
+            // Nome di luogo: carattere condensato. Il confronto col testo
+            // accanto e' il punto della prova.
             Text(
-                "CAPOLINEA AGRICOLTURA",
-                style = MaterialTheme.typography.bodyLarge,
+                "C.SO VITTORIO EMANUELE/S. A. DELLA VALLE",
+                style = stileNome,
                 color = c.neutral900,
+                maxLines = 1,
             )
             Text("palina 70003", style = MaterialTheme.typography.bodySmall, color = c.neutral500)
             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = c.neutral200)
