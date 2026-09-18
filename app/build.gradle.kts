@@ -1,8 +1,28 @@
+// `java` dentro un build script Kotlin e' l'estensione del plugin Java,
+// non il package: senza questo import, java.util.Properties non si risolve.
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+/**
+ * Le credenziali di firma stanno FUORI dal repository, in
+ * ~/.busroma/firma.properties con permessi 600.
+ *
+ * Non in gradle.properties e non in un file del progetto: una chiave di
+ * firma committata per sbaglio non si revoca: chiunque l'abbia puo'
+ * pubblicare aggiornamenti che i telefoni accettano come nostri.
+ *
+ * Se il file non c'e', la build di rilascio esce NON FIRMATA invece di
+ * fallire: chi clona il progetto deve poterlo compilare senza avere la
+ * chiave di nessun altro.
+ */
+val credenzialiFirma = File(System.getProperty("user.home"), ".busroma/firma.properties")
+    .takeIf { it.exists() }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
 
 android {
     // Da AGP 8 il namespace sta qui e NON nel manifest.
@@ -23,6 +43,22 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (credenzialiFirma != null) {
+            create("rilascio") {
+                storeFile = File(credenzialiFirma.getProperty("storeFile"))
+                storePassword = credenzialiFirma.getProperty("storePassword")
+                keyAlias = credenzialiFirma.getProperty("keyAlias")
+                keyPassword = credenzialiFirma.getProperty("keyPassword")
+                // Entrambi gli schemi: v2 basta da Android 7, v1 serve ai
+                // telefoni piu' vecchi che il minSdk 26 non esclude del tutto
+                // nel caso di installazioni laterali.
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         all {
             buildConfigField("String", "BASE_URL", "\"https://bus.disagio.dev\"")
@@ -37,7 +73,27 @@ android {
         )
         }
         release {
+            // R8 SPENTO, di proposito. Ktor e kotlinx.serialization si
+            // appoggiano alla reflection e ai serializzatori generati, e
+            // senza le regole giuste l'offuscamento li rompe a RUNTIME: la
+            // build riesce e l'app crolla aprendo una fermata. Per una
+            // distribuzione fra amici non vale il rischio; quando servira'
+            // ridurre il peso, si accende con le regole e si riprova ogni
+            // schermata.
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("rilascio")
+
+            // SOLO LE ARCHITETTURE DEI TELEFONI VERI. MapLibre porta librerie
+            // native per quattro architetture: su 54 MB di APK, 42 erano
+            // librerie e 22 di quelle erano x86 e x86_64, che esistono solo
+            // negli emulatori. Toglierle dalla build di rilascio dimezza il
+            // file che si manda agli amici e non toglie niente a nessuno.
+            //
+            // Restano in quella di DEBUG, dove servono per far girare l'app
+            // su un emulatore durante lo sviluppo.
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
         }
     }
 
