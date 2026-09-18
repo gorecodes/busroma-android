@@ -127,13 +127,34 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
     }
 
     Column {
-        Text(
-            text = "Qui intorno",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = c.neutral500,
-            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Qui intorno",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = c.neutral500,
+                modifier = Modifier.weight(1f),
+            )
+            // AGGIORNA, e non solo nello stato di errore: l'avviso sulla
+            // posizione vecchia diceva "ricarica" e non c'era niente da
+            // toccare. Serve anche a chi si e' spostato di due fermate.
+            if (stato is StatoVicine.Trovate) {
+                Text(
+                    text = "Aggiorna",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = c.brand600,
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { carica() }
+                        .padding(horizontal = 10.dp, vertical = 13.dp),
+                )
+            }
+        }
 
         when (val s = stato) {
             StatoVicine.Riposo -> Tasto("Usa la mia posizione", c) {

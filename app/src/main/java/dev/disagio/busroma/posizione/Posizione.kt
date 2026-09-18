@@ -5,33 +5,31 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
- * La posizione, presa dal LocationManager di sistema.
+ * La posizione, dal LocationManager di sistema.
  *
- * NIENTE PLAY SERVICES. `FusedLocationProviderClient` è lo standard di fatto e
- * fonde meglio GPS, rete e sensori, ma aggiunge una dipendenza da Google Play
- * e rende l'app non installabile sui telefoni che ne sono privi. Il
- * LocationManager di sistema dà lo stesso dato del GPS: quello che si perde è
- * la fusione dei sensori, che conta per il navigatore di un'auto in
- * movimento, non per sapere a quale palina sei vicino stando fermo.
+ * NIENTE PLAY SERVICES. `FusedLocationProviderClient` aggiunge una dipendenza
+ * da Google Play e rende l'app non installabile sui telefoni che ne sono
+ * privi. E non serve: da Android 12 la PIATTAFORMA ha il suo provider fuso
+ * (`LocationManager.FUSED_PROVIDER`), che combina GPS, WiFi e celle
+ * esattamente come fa `navigator.geolocation` nel browser.
  *
- * SI CHIEDE SOLO AL TOCCO, mai all'avvio. È la stessa regola del web: un'app
- * di trasporti che chiede la posizione appena la apri insegna a negare il
- * permesso per riflesso.
+ * SI CHIEDE LA PRECISA. L'approssimata di Android non è meno accurata:
+ * è agganciata a un'area di circa tre chilometri quadrati. Misurato
+ * sullo stesso telefono e nello stesso posto: con l'approssimata la fermata
+ * più vicina risultava a 271 m, con la precisa a 43 m. Non è una
+ * distanza meno esatta, è una fermata diversa.
  *
- * SI CHIEDE LA PRECISA. L'approssimata di Android non è meno accurata: è
- * agganciata a un'area di circa tre chilometri quadrati. Su una lista di
- * fermate entro trecento metri quel dato è falso, e falso in modo verosimile —
- * la schermata mostrerebbe "271 m" calcolati su una posizione sbagliata di un
- * chilometro. Se l'utente concede solo l'approssimata l'app funziona comunque,
- * ma l'incertezza dichiarata dal sistema (`Location.accuracy`) viene mostrata
- * in pagina invece di far finta che il dato sia buono.
+ * SI CHIEDE SOLO AL TOCCO, mai all'avvio: un'app di trasporti che chiede
+ * la posizione appena la apri insegna a negare il permesso per riflesso.
  */
 object Posizione {
 
@@ -48,116 +46,122 @@ object Posizione {
         ContextCompat.checkSelfPermission(context, permesso) == PackageManager.PERMISSION_GRANTED
 
     /**
-     * Oltre questa incertezza la posizione non e' utile per ordinare fermate a
-     * trecento metri: si mostra comunque, ma dicendo che e' approssimata.
-     * 300 metri perche' e' l'ordine di grandezza del raggio che interroghiamo:
-     * se l'errore e' grande come il raggio, il primo risultato puo' facilmente
-     * non essere il piu' vicino.
+     * Oltre questa incertezza la posizione non è utile per ordinare fermate
+     * a trecento metri: si mostra comunque, dichiarandola.
      */
     const val INCERTEZZA_ACCETTABILE_M = 300f
+
+    private const val ATTESA_MS = 12_000L
 
     /**
      * Una posizione, o null. Tre tentativi in cascata.
      *
-     * 1. L'ULTIMA NOTA RECENTE, sotto i cinque minuti: è immediata, e per
-     *    cercare fermate nel raggio di qualche centinaio di metri va benissimo.
-     * 2. Una MISURA NUOVA, che accende il GPS e può richiedere secondi. Il
-     *    timeout è indispensabile: in un cortile interno o in metropolitana la
-     *    richiesta non torna mai, e senza limite la schermata resterebbe a
-     *    girare per sempre.
-     * 3. L'ULTIMA NOTA QUALUNQUE, anche vecchia. Questo terzo tentativo è
-     *    stato aggiunto dopo averlo provato sul telefono: al chiuso il GPS non
-     *    aggancia in dieci secondi, e quel caso sarà la norma, non
-     *    l'eccezione. Buttare via una posizione di dieci minuti fa per
-     *    mostrare un errore è la scelta sbagliata — nello stesso quartiere
-     *    quella posizione risponde ancora alla domanda "cosa ho intorno".
-     *    L'età viene restituita al chiamante, che la dichiara in pagina: un
-     *    dato vecchio dichiarato è utile, un dato vecchio spacciato per fresco
-     *    è una bugia.
+     * 1. L'ULTIMA NOTA RECENTE (sotto i 5 minuti): immediata.
+     * 2. Una MISURA NUOVA da TUTTI i provider disponibili, in parallelo.
+     * 3. L'ULTIMA NOTA QUALUNQUE, anche vecchia, dichiarandone l'età:
+     *    nello stesso quartiere risponde ancora alla domanda "cosa ho
+     *    intorno", e buttarla via per mostrare un errore è la scelta
+     *    sbagliata.
      */
-    @SuppressLint("MissingPermission") // verificato da permessoConcesso, chiamato prima
+    @SuppressLint("MissingPermission") // permessoConcesso viene chiamato prima
     suspend fun corrente(context: Context): Location? {
         if (!permessoConcesso(context)) return null
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
 
-        ultimaUtile(lm)?.let { return it }
+        ultimaNota(lm, maxEtaMs = 5 * 60_000L)?.let { return it }
 
-        val fresca = withTimeoutOrNull(10_000) {
-            suspendCancellableCoroutine { cont ->
-                // Il GPS PRIMA della rete, al contrario di prima: col permesso
-                // preciso e' il provider che da' il dato che ci serve. La rete
-                // resta come ripiego, perche' al chiuso il GPS non aggancia.
-                val provider = when {
-                    lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-                    lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-                    else -> null
-                }
-                if (provider == null) {
-                    cont.resume(null)
-                    return@suspendCancellableCoroutine
-                }
+        withTimeoutOrNull(ATTESA_MS) { misuraNuova(context, lm) }?.let { return it }
 
-                val ascoltatore = object : android.location.LocationListener {
+        return ultimaNota(lm, maxEtaMs = Long.MAX_VALUE)
+    }
+
+    /**
+     * Chiede una misura a TUTTI i provider attivi CONTEMPORANEAMENTE, e tiene
+     * la prima che arriva.
+     *
+     * QUESTA È LA CORREZIONE DI UN ERRORE. La prima versione sceglieva un
+     * solo provider a cascata - "se il GPS è attivo usa il GPS, altrimenti
+     * la rete" - e al chiuso non funzionava mai: il GPS È attivo ma non
+     * aggancia, quindi si restava ad attenderlo fino al timeout senza mai
+     * provare la rete. Nel browser la stessa cosa funzionava, perché
+     * navigator.geolocation usa il provider fuso e non uno scelto a mano.
+     *
+     * L'ordine nella lista conta solo se due rispondono nello stesso
+     * istante: il fuso per primo, perché è quello che sa combinare le
+     * fonti.
+     */
+    @SuppressLint("MissingPermission")
+    private suspend fun misuraNuova(context: Context, lm: LocationManager): Location? =
+        suspendCancellableCoroutine { cont ->
+            val provider = buildList {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    add(LocationManager.FUSED_PROVIDER)
+                }
+                add(LocationManager.NETWORK_PROVIDER)
+                add(LocationManager.GPS_PROVIDER)
+            }.filter {
+                try {
+                    lm.isProviderEnabled(it)
+                } catch (e: Exception) {
+                    false
+                }
+            }
+
+            if (provider.isEmpty()) {
+                cont.resume(null)
+                return@suspendCancellableCoroutine
+            }
+
+            val ascoltatori = mutableListOf<LocationListener>()
+            fun smetti() = ascoltatori.forEach { lm.removeUpdates(it) }
+
+            provider.forEach { p ->
+                val ascoltatore = object : LocationListener {
                     override fun onLocationChanged(l: Location) {
-                        lm.removeUpdates(this)
+                        smetti()
                         if (cont.isActive) cont.resume(l)
                     }
 
-                    // Obbligatori prima di API 30, dove sono astratti.
-                    override fun onProviderEnabled(p: String) {}
-                    override fun onProviderDisabled(p: String) {
-                        lm.removeUpdates(this)
-                        if (cont.isActive) cont.resume(null)
-                    }
+                    // Astratti prima di API 30: vanno implementati comunque.
+                    override fun onProviderEnabled(provider: String) {}
+
+                    // NON si chiude il tentativo qui: se si spegne il GPS
+                    // restano gli altri provider a cui stiamo chiedendo.
+                    override fun onProviderDisabled(provider: String) {}
                 }
-
-                lm.requestLocationUpdates(provider, 0L, 0f, ascoltatore, context.mainLooper)
-                cont.invokeOnCancellation { lm.removeUpdates(ascoltatore) }
+                ascoltatori += ascoltatore
+                try {
+                    lm.requestLocationUpdates(p, 0L, 0f, ascoltatore, context.mainLooper)
+                } catch (e: Exception) {
+                    // Un provider che rifiuta non deve impedire agli altri.
+                }
             }
-        }
-        if (fresca != null) return fresca
 
-        // Terzo tentativo: meglio vecchia che niente, e l'eta' la dichiara chi
-        // la mostra.
-        return ultimaQualunque(lm)
-    }
+            cont.invokeOnCancellation { smetti() }
+        }
 
     /**
-     * L'ultima posizione nota, se non è troppo vecchia.
-     *
-     * Cinque minuti: oltre, si rischia di mostrare le fermate del posto da cui
-     * si è partiti, che è l'errore peggiore possibile qui — sembra
-     * un'informazione e non lo è.
+     * L'ultima posizione nota entro un'età massima, la più
+     * recente fra i provider.
      */
     @SuppressLint("MissingPermission")
-    private fun ultimaUtile(lm: LocationManager): Location? {
-        val soglia = System.currentTimeMillis() - 5 * 60_000
-        return listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .mapNotNull { p ->
-                try {
-                    if (lm.isProviderEnabled(p)) lm.getLastKnownLocation(p) else null
-                } catch (e: SecurityException) {
-                    null
-                }
+    private fun ultimaNota(lm: LocationManager, maxEtaMs: Long): Location? {
+        val soglia = if (maxEtaMs == Long.MAX_VALUE) Long.MIN_VALUE
+        else System.currentTimeMillis() - maxEtaMs
+        return buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add(LocationManager.FUSED_PROVIDER)
             }
+            add(LocationManager.GPS_PROVIDER)
+            add(LocationManager.NETWORK_PROVIDER)
+        }.mapNotNull { p ->
+            try {
+                if (lm.isProviderEnabled(p)) lm.getLastKnownLocation(p) else null
+            } catch (e: Exception) {
+                null
+            }
+        }
             .filter { it.time >= soglia }
             .maxByOrNull { it.time }
     }
-
-    /**
-     * L'ultima posizione nota senza limiti di età: l'ultima spiaggia quando il
-     * GPS non aggancia. Chi la usa deve guardare `Location.time` e dire
-     * quanto è vecchia.
-     */
-    @SuppressLint("MissingPermission")
-    private fun ultimaQualunque(lm: LocationManager): Location? =
-        listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .mapNotNull { p ->
-                try {
-                    if (lm.isProviderEnabled(p)) lm.getLastKnownLocation(p) else null
-                } catch (e: SecurityException) {
-                    null
-                }
-            }
-            .maxByOrNull { it.time }
 }
