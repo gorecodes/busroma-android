@@ -36,7 +36,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import dev.disagio.busroma.dati.Arrivo
+import dev.disagio.busroma.preferiti.FermataPreferita
+import dev.disagio.busroma.preferiti.Preferiti
+import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
@@ -70,21 +74,59 @@ fun SchermataArrivi(stopId: String, modifier: Modifier = Modifier) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { vm.ciclo() }
     }
 
+    // I preferiti: si legge il flusso per sapere se questa fermata e' salvata.
+    val contesto = LocalContext.current
+    val preferiti by Preferiti.flusso(contesto).collectAsStateWithLifecycle(emptyList())
+    val salvata = preferiti.any { it.stopId == stopId }
+
     Column(modifier.fillMaxSize().background(c.neutral100)) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
-            Text(
-                text = stato.fermata?.name ?: "Fermata",
-                style = MaterialTheme.typography.headlineSmall,
-                color = c.neutral900,
-                maxLines = 2,
-            )
-            stato.fermata?.code?.let { palina ->
+        Row(
+            Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = "palina $palina",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = c.neutral500,
+                    text = stato.fermata?.name ?: "Fermata",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = c.neutral900,
+                    maxLines = 2,
                 )
+                stato.fermata?.code?.let { palina ->
+                    Text(
+                        text = "palina $palina",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = c.neutral500,
+                    )
+                }
             }
+
+            // La stella e' attiva solo quando il nome e' arrivato: salvare un
+            // preferito chiamato "Fermata" non servirebbe a nessuno.
+            stato.fermata?.let { f ->
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(50))
+                        .clickable {
+                            scope.launch {
+                                Preferiti.alterna(
+                                    contesto,
+                                    FermataPreferita(f.stopId, f.name, f.code),
+                                )
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Stella(
+                        piena = salvata,
+                        colore = if (salvata) c.brand500 else c.neutral400,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+        }
+
+        Column(Modifier.padding(horizontal = 16.dp)) {
 
             if (stato.errore && stato.arrivi.isNotEmpty()) {
                 // I dati restano, ma si dice che sono vecchi. Nascondere il

@@ -31,10 +31,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import dev.disagio.busroma.dati.FermataTrovata
+import dev.disagio.busroma.preferiti.FermataPreferita
+import dev.disagio.busroma.preferiti.Preferiti as DepositoPreferiti
+import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
+import kotlinx.coroutines.launch
 
 /**
  * La schermata di partenza: ricerca di una fermata.
@@ -54,6 +63,9 @@ fun SchermataRicerca(
     val vm: RicercaViewModel = viewModel()
     val stato by vm.stato.collectAsStateWithLifecycle()
     val c = LocalPalette.current
+    val contesto = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val preferiti by DepositoPreferiti.flusso(contesto).collectAsStateWithLifecycle(emptyList())
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
         Column(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp)) {
@@ -69,10 +81,12 @@ fun SchermataRicerca(
         Spacer(Modifier.height(12.dp))
 
         when {
-            stato.testo.isBlank() -> Nota(
-                "Cerca per nome o per numero di palina. I preferiti arrivano al prossimo passo.",
-                c,
-            )
+            // A campo vuoto la schermata mostra i preferiti, non un
+            // suggerimento: sono la cosa piu' utile al primo colpo perche' non
+            // chiedono il permesso di posizione ne' una digitazione.
+            stato.testo.isBlank() -> Preferiti(preferiti, c, apriFermata) { stopId ->
+                scope.launch { DepositoPreferiti.rimuovi(contesto, stopId) }
+            }
             stato.errore -> Nota("La ricerca non risponde.", c)
             stato.risultati.isEmpty() && !stato.cercando -> Nota("Nessuna fermata con questo nome.", c)
             else -> LazyColumn {
@@ -173,5 +187,83 @@ private fun RigaFermata(f: FermataTrovata, c: Palette, apri: () -> Unit) {
 private fun Nota(testo: String, c: Palette) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(testo, style = MaterialTheme.typography.bodyMedium, color = c.neutral500)
+    }
+}
+
+/**
+ * I preferiti: illimitati e nell'ordine deciso dall'utente.
+ *
+ * Il riordino per trascinamento non c'e' ancora e il modello lo prevede gia'
+ * (Preferiti.sposta): quando arrivera' non servira' migrare i dati di chi ha
+ * l'app installata.
+ *
+ * La stella per rimuovere sta su ogni riga e non dentro un menu: e' l'unica
+ * azione distruttiva qui, ed e' immediatamente annullabile ritoccandola dalla
+ * pagina della fermata.
+ */
+@Composable
+private fun Preferiti(
+    elenco: List<FermataPreferita>,
+    c: Palette,
+    apri: (String) -> Unit,
+    rimuovi: (String) -> Unit,
+) {
+    if (elenco.isEmpty()) {
+        Nota(
+            "Nessun preferito. Apri una fermata e tocca la stella: comparira' qui, " +
+                "senza bisogno di cercarla ogni volta.",
+            c,
+        )
+        return
+    }
+
+    Column {
+        Text(
+            text = "Preferiti",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = c.neutral500,
+            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+        )
+        LazyColumn {
+            items(elenco, key = { it.stopId }) { f ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .clickable { apri(f.stopId) }
+                            .padding(start = 16.dp, top = 11.dp, bottom = 11.dp),
+                    ) {
+                        Text(
+                            text = f.nome,
+                            style = stileNome,
+                            color = c.neutral900,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        f.palina?.let {
+                            Text(
+                                text = "palina $it",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = c.neutral500,
+                            )
+                        }
+                    }
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(50))
+                            .clickable { rimuovi(f.stopId) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Stella(piena = true, colore = c.brand500, modifier = Modifier.size(22.dp))
+                    }
+                }
+                HorizontalDivider(color = c.neutral200)
+            }
+        }
     }
 }
