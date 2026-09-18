@@ -116,6 +116,18 @@ object Api {
     suspend fun avvisi(): RispostaAvvisi =
         client.get("$base/api/alerts").body()
 
+    /**
+     * I prossimi passaggi di UNA linea a UNA fermata.
+     *
+     * Serve al pannello che si apre toccando una fermata nell'elenco del
+     * percorso: la domanda lì non è "cosa passa da qui" ma "quando passa
+     * QUESTA linea da qui", e sono due risposte diverse.
+     */
+    suspend fun passaggiLineaAllaFermata(routeId: String, stopId: String): RispostaPassaggiLinea =
+        client.get("$base/api/routes/${routeId.encodeURLPathPart()}/arrivals") {
+            parameter("stop", stopId)
+        }.body()
+
     /** Gli avvisi delle linee che servono una fermata. */
     suspend fun avvisiFermata(stopId: String): RispostaAvvisi =
         client.get("$base/api/alerts") { parameter("stop", stopId) }.body()

@@ -11,14 +11,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.draw.rotate
+import dev.disagio.busroma.dati.PassaggioLinea
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +51,7 @@ import dev.disagio.busroma.dati.Verso
 import dev.disagio.busroma.dati.etichettaTipo
 import dev.disagio.busroma.dati.nomeLinea
 import dev.disagio.busroma.ui.AzioniIntestazione
+import dev.disagio.busroma.ui.PuntaGiu
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
@@ -77,12 +83,16 @@ private const val VICINANZA_M = 500.0
 fun SchermataLinea(
     routeId: String,
     versoIniziale: Int?,
+    apriFermata: (String) -> Unit,
+    apriCorsa: (String) -> Unit,
     apriAvvisi: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = LocalPalette.current
 
     var linea by remember(routeId) { mutableStateOf<Linea?>(null) }
+    /** Quale fermata del percorso ha il pannello aperto. */
+    var apertaId by remember(routeId) { mutableStateOf<String?>(null) }
     var versi by remember(routeId) { mutableStateOf<List<Verso>>(emptyList()) }
     var verso by remember(routeId) { mutableStateOf<Int?>(null) }
     var fermate by remember(routeId) { mutableStateOf<List<FermataLinea>>(emptyList()) }
@@ -105,6 +115,9 @@ fun SchermataLinea(
 
     // Fermate: al cambio di verso.
     LaunchedEffect(routeId, verso) {
+        // Cambiando verso l'elenco e' un altro: un pannello aperto resterebbe
+        // agganciato a una fermata che non c'e' piu'.
+        apertaId = null
         val v = verso ?: return@LaunchedEffect
         fermate = try {
             Api.fermateLinea(routeId, v).stops
@@ -150,8 +163,22 @@ fun SchermataLinea(
                         mezziQui = perFermata[f.stopId] ?: 0,
                         primo = f.sequenza == fermate.first().sequenza,
                         ultimo = f.sequenza == fermate.last().sequenza,
+                        aperta = apertaId == f.stopId,
                         c = c,
+                        // UNA SOLA fermata aperta alla volta: con trenta righe
+                        // e nessun limite, l'elenco del percorso diventava un
+                        // muro di pannelli e non si scorreva piu'.
+                        alterna = { apertaId = if (apertaId == f.stopId) null else f.stopId },
                     )
+                    if (apertaId == f.stopId) {
+                        PannelloFermata(
+                            routeId = routeId,
+                            fermata = f,
+                            c = c,
+                            apriFermata = apriFermata,
+                            apriCorsa = apriCorsa,
+                        )
+                    }
                 }
             }
         }
@@ -218,56 +245,95 @@ private fun Intestazione(
 }
 
 /**
- * I due versi come due tasti larghi, non come un menu: sono sempre due, e i
- * capolinea romani sono lunghi - su una riga sola si troncherebbero sempre, ed
- * e' il difetto che sul web e' stato corretto mandandoli a capo.
+ * Il verso, scelto da una tendina.
  *
- * I DUE TASTI DEVONO ESSERE ALTI UGUALE. Andando a capo, un capolinea lungo
- * rendeva il suo tasto piu' alto dell'altro: sulla 982 il verso DICIASSETTESIMA
- * OLIMPIADE occupava due righe e STAZIONE QUATTRO VENTI una, e i due riquadri
- * non si allineavano in basso. Sul web non succede perche' e' una griglia CSS,
- * che pareggia le celle da se'. Qui si ottiene con height(IntrinsicSize.Max)
- * sulla riga - che misura il piu' alto dei due - e fillMaxHeight sui figli,
- * che li fa arrivare entrambi a quell'altezza.
+ * PRIMA ERANO DUE TASTI AFFIANCATI, e il difetto era l'altezza: con un
+ * capolinea lungo il testo andava a capo e quel tasto diventava piu' alto
+ * dell'altro. Pareggiarli con IntrinsicSize risolveva l'allineamento ma
+ * ingrandiva entrambi i riquadri, che e' il rimedio che all'utente non e'
+ * piaciuto - e a ragione, perche' due tasti alti il doppio per una scelta fra
+ * due cose e' peso visivo comprato a niente.
+ *
+ * Una riga sola a larghezza PIENA toglie il problema alla radice invece di
+ * compensarlo: un capolinea romano su tutta la larghezza ci sta su una riga,
+ * quindi non va a capo, e non c'e' nessun fratello con cui disallinearsi.
+ *
+ * Su cento linee dell'API, 26 hanno un verso e 74 ne hanno due: nessuna di
+ * piu'. Con due sole voci una tendina costa un tocco in piu' di uno scambio
+ * diretto, ma mostra sempre dove sei senza doverlo dedurre, ed e' il
+ * comportamento che si aspetta chi vede una punta di freccia.
  */
 @Composable
 private fun SceltaVerso(versi: List<Verso>, attuale: Int, c: Palette, scegli: (Int) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().height(IntrinsicSize.Max).padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        versi.forEach { v ->
-            val scelto = v.directionId == attuale
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (scelto) c.neutral900 else c.neutral50)
-                    .border(
-                        1.dp,
-                        if (scelto) c.neutral900 else c.neutral300,
-                        RoundedCornerShape(4.dp),
-                    )
-                    .clickable { scegli(v.directionId) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            ) {
+    var aperta by remember { mutableStateOf(false) }
+    val scelto = versi.firstOrNull { it.directionId == attuale }
+
+    // BoxWithConstraints per sapere quanto e' larga la riga: la tendina di
+    // Compose si dimensiona sul suo contenuto, non sull'elemento che la apre,
+    // e usciva stretta e sfalsata - "non sembra naturale", e non lo sembrava
+    // perche' non lo e'. Passandole la larghezza misurata si allinea alla
+    // riga come fa una tendina vera.
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        val largaQuanto = maxWidth
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(4.dp))
+                .background(c.neutral50)
+                .border(1.dp, c.neutral300, RoundedCornerShape(4.dp))
+                .clickable { aperta = true }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
                 Text(
                     text = "verso",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (scelto) c.neutral400 else c.neutral500,
+                    color = c.neutral500,
                 )
                 Text(
-                    text = v.headsign ?: "—",
+                    text = scelto?.headsign ?: "\u2014",
                     style = stileNome,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (scelto) c.neutral50 else c.neutral900,
+                    color = c.neutral900,
+                    // Due righe consentite e nessun troncamento: e' un elemento
+                    // solo, quindi se cresce non disallinea niente.
                     maxLines = 2,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            PuntaGiu(c.neutral500, Modifier.size(18.dp))
+        }
+
+        DropdownMenu(
+            expanded = aperta,
+            onDismissRequest = { aperta = false },
+            modifier = Modifier.width(largaQuanto).background(c.neutral50),
+        ) {
+            versi.forEach { v ->
+                val corrente = v.directionId == attuale
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = v.headsign ?: "\u2014",
+                            style = stileNome,
+                            fontWeight = if (corrente) FontWeight.SemiBold else FontWeight.Normal,
+                            // Il verso in cui sei e' segnato col colore
+                            // d'identita', non con una spunta: una spunta in
+                            // un elenco di due voci e' rumore.
+                            color = if (corrente) c.brand500 else c.neutral900,
+                        )
+                    },
+                    onClick = {
+                        aperta = false
+                        if (!corrente) scegli(v.directionId)
+                    },
                 )
             }
         }
     }
 }
+
 
 /**
  * Una fermata del percorso, con la linea del tracciato a sinistra.
@@ -281,10 +347,18 @@ private fun RigaFermataLinea(
     mezziQui: Int,
     primo: Boolean,
     ultimo: Boolean,
+    aperta: Boolean,
     c: Palette,
+    alterna: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        Modifier
+            .fillMaxWidth()
+            // LA RIGA INTERA APRE GLI ORARI, come sul web. Prima era inerte, e
+            // arrivandoci da un arrivo senza mezzo tracciato si finiva su un
+            // elenco di trenta nomi su cui non si poteva fare niente.
+            .clickable(onClick = alterna)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Il filo del percorso: si interrompe al primo e all'ultimo capolinea,
@@ -342,6 +416,16 @@ private fun RigaFermataLinea(
                 color = c.live600,
             )
         }
+        Spacer(Modifier.width(6.dp))
+        // La freccia ruota invece di cambiare glifo: dice "questa riga si apre"
+        // anche da chiusa, che e' il motivo per cui prima nessuno provava a
+        // toccarla.
+        PuntaGiu(
+            c.neutral400,
+            Modifier
+                .size(16.dp)
+                .rotate(if (aperta) 180f else 0f),
+        )
     }
 }
 
@@ -402,5 +486,134 @@ private fun Nota(testo: String, c: Palette) {
         style = MaterialTheme.typography.bodyMedium,
         color = c.neutral500,
         modifier = Modifier.padding(16.dp),
+    )
+}
+
+/**
+ * Il pannello che si apre sotto una fermata del percorso.
+ *
+ * Risponde a "quando passa QUESTA linea da QUI", che non e' la domanda della
+ * pagina della fermata - quella risponde "cosa passa da qui", tutte le linee
+ * insieme. Sono due schermate diverse perche' sono due domande diverse, e il
+ * link in fondo porta dalla prima alla seconda.
+ *
+ * Gli orari si caricano ALL'APERTURA e non con l'elenco: una linea ha trenta
+ * fermate, e chiedere i passaggi di tutte per mostrarne uno significherebbe
+ * trenta richieste per niente.
+ */
+@Composable
+private fun PannelloFermata(
+    routeId: String,
+    fermata: FermataLinea,
+    c: Palette,
+    apriFermata: (String) -> Unit,
+    apriCorsa: (String) -> Unit,
+) {
+    var passaggi by remember(routeId, fermata.stopId) {
+        mutableStateOf<List<PassaggioLinea>?>(null)
+    }
+    var errore by remember(routeId, fermata.stopId) { mutableStateOf(false) }
+
+    LaunchedEffect(routeId, fermata.stopId) {
+        try {
+            passaggi = Api.passaggiLineaAllaFermata(routeId, fermata.stopId).arrivals
+        } catch (e: Exception) {
+            errore = true
+        }
+    }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 44.dp, end = 16.dp, bottom = 10.dp),
+    ) {
+        Column(
+            Modifier
+                .drawBehind {
+                    // Filetto che lega il pannello al pallino da cui esce.
+                    drawRect(
+                        color = c.neutral200,
+                        size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height),
+                    )
+                }
+                .padding(start = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val p = passaggi
+            when {
+                errore -> Nota2("Gli orari non si lasciano leggere.", c)
+                p == null -> Nota2("Leggo gli orari...", c)
+                p.isEmpty() -> Nota2("Nelle prossime 2 ore, niente.", c)
+                else -> p.take(3).forEach { a ->
+                    RigaPassaggio(a, c) { a.tripId?.let(apriCorsa) }
+                }
+            }
+
+            Text(
+                text = buildString {
+                    append("Tutte le linee di questa fermata")
+                    fermata.code?.let { append(" (palina $it)") }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = c.brand600,
+                modifier = Modifier
+                    .heightIn(min = 40.dp)
+                    .clickable { apriFermata(fermata.stopId) }
+                    .padding(top = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RigaPassaggio(a: PassaggioLinea, c: Palette, apri: () -> Unit) {
+    val orario = try {
+        java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+            .format(java.time.Instant.parse(a.etaTs).atZone(java.time.ZoneId.of("Europe/Rome")))
+    } catch (e: Exception) {
+        "--:--"
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 30.dp)
+            // Cliccabile solo se c'e' una corsa da aprire: qui, al contrario
+            // della riga degli arrivi, non esiste una seconda destinazione -
+            // la linea e' questa, ci siamo gia'.
+            .then(if (a.tripId != null) Modifier.clickable(onClick = apri) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = orario,
+            style = MaterialTheme.typography.bodyMedium,
+            color = c.neutral900,
+            modifier = Modifier.width(52.dp),
+        )
+        if (a.isRealtime) {
+            Box(
+                Modifier
+                    .size(7.dp)
+                    .background(c.live500, RoundedCornerShape(50)),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            text = when {
+                a.minutes == null -> ""
+                a.minutes <= 0 -> "in arrivo"
+                else -> "tra ${a.minutes} min"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (a.isRealtime) c.live600 else c.neutral500,
+        )
+    }
+}
+
+@Composable
+private fun Nota2(testo: String, c: Palette) {
+    Text(
+        text = testo,
+        style = MaterialTheme.typography.bodySmall,
+        color = c.neutral500,
     )
 }

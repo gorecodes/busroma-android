@@ -417,3 +417,27 @@ data class LuogoTrovato(
 
 @Serializable
 data class RispostaGeocodifica(val results: List<LuogoTrovato> = emptyList())
+
+/**
+ * Un passaggio di UNA linea a UNA fermata, per il pannello che si apre
+ * toccando una fermata nell'elenco del percorso.
+ *
+ * Non riusa `Arrivo`: quello risponde a "cosa passa da questa fermata" e
+ * porta la linea con sé (short_name, colori, verso), qui la linea si sa già
+ * ed è l'orario la cosa nuova. Riusarlo avrebbe voluto dire dichiarare
+ * opzionali metà dei suoi campi, e a quel punto non descrive più niente.
+ */
+@Serializable
+data class PassaggioLinea(
+    @SerialName("trip_id") val tripId: String? = null,
+    val headsign: String? = null,
+    @SerialName("eta_ts") val etaTs: String,
+    val minutes: Int? = null,
+    @SerialName("is_realtime") val isRealtime: Boolean = false,
+    val delay: Int? = null,
+)
+
+@Serializable
+data class RispostaPassaggiLinea(
+    val arrivals: List<PassaggioLinea> = emptyList(),
+)

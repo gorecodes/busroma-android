@@ -236,3 +236,26 @@ fun Spillo(colore: Color, modifier: Modifier = Modifier) {
         drawCircle(colore, radius = p(2.1f), center = Offset(p(10f), p(8.4f)))
     }
 }
+
+/** Punta di freccia verso il basso: "qui si apre un elenco". */
+@Composable
+fun PuntaGiu(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        val sp = l * 0.13f
+        drawLine(
+            colore,
+            Offset(l * 0.22f, l * 0.40f),
+            Offset(l * 0.50f, l * 0.66f),
+            strokeWidth = sp,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        drawLine(
+            colore,
+            Offset(l * 0.50f, l * 0.66f),
+            Offset(l * 0.78f, l * 0.40f),
+            strokeWidth = sp,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+    }
+}
