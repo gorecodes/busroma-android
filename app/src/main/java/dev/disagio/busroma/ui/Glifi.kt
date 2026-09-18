@@ -161,3 +161,18 @@ fun Sole(colore: Color, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Una croce: chiude, svuota, annulla. */
+@Composable
+fun Croce(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        val sp = l * 0.13f
+        val a = l * 0.27f
+        val b = l * 0.73f
+        drawLine(colore, Offset(a, a), Offset(b, b), strokeWidth = sp,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(colore, Offset(b, a), Offset(a, b), strokeWidth = sp,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+}

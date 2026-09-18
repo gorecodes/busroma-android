@@ -55,6 +55,9 @@ import dev.disagio.busroma.dati.FermataTrovata
 import dev.disagio.busroma.preferiti.CartaPreferito
 import dev.disagio.busroma.preferiti.FermataPreferita
 import dev.disagio.busroma.preferiti.Preferiti as DepositoPreferiti
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalFocusManager
+import dev.disagio.busroma.ui.Croce
 import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.Stella
 import dev.disagio.busroma.ui.theme.LocalPalette
@@ -92,6 +95,21 @@ fun SchermataRicerca(
     // toccato la schermata mostra preferiti e arrivi vicini, che valgono di
     // piu' di un elenco di cose cercate ieri.
     var toccato by remember { mutableStateOf(false) }
+    val gestoreFuoco = LocalFocusManager.current
+
+    // L'INDIETRO DI SISTEMA SVUOTA LA RICERCA, non esce dall'app.
+    //
+    // La ricerca non e' una schermata a se': e' la principale che cambia
+    // stato. Quindi l'indietro non aveva niente da chiudere e usciva
+    // dall'app - e l'unico modo di tornare alla home era toccare "Fermate" in
+    // basso, che l'utente ha giustamente definito non intuitivo. Abilitato
+    // solo quando c'e' qualcosa da annullare: altrimenti l'uscita dall'app
+    // deve restare possibile.
+    BackHandler(enabled = stato.testo.isNotBlank() || toccato) {
+        if (stato.testo.isNotBlank()) vm.scrivi("")
+        toccato = false
+        gestoreFuoco.clearFocus(force = true)
+    }
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
         Row(
@@ -107,7 +125,17 @@ fun SchermataRicerca(
             AzioniIntestazione(apriAvvisi)
         }
         Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp)) {
-            CampoRicerca(stato.testo, vm::scrivi, c) { toccato = true }
+            CampoRicerca(
+                testo = stato.testo,
+                scrivi = vm::scrivi,
+                c = c,
+                alTocco = { toccato = true },
+                svuota = {
+                    vm.scrivi("")
+                    toccato = false
+                    gestoreFuoco.clearFocus(force = true)
+                },
+            )
         }
 
         Spacer(Modifier.height(12.dp))
@@ -193,6 +221,7 @@ private fun CampoRicerca(
     scrivi: (String) -> Unit,
     c: Palette,
     alTocco: () -> Unit,
+    svuota: () -> Unit,
 ) {
     val interazioni = remember { MutableInteractionSource() }
     val aFuoco by interazioni.collectIsFocusedAsState()
@@ -215,7 +244,7 @@ private fun CampoRicerca(
             cursorBrush = SolidColor(c.neutral900),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             interactionSource = interazioni,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.weight(1f),
             decorationBox = { campo ->
                 if (testo.isEmpty()) {
                     Text(
@@ -227,6 +256,20 @@ private fun CampoRicerca(
                 campo()
             },
         )
+        // La croce e' il modo VISIBILE di uscire dalla ricerca. Il gesto
+        // indietro fa la stessa cosa, ma un gesto non si vede: senza un segno
+        // in pagina, l'unica uscita evidente era la barra in basso.
+        if (testo.isNotEmpty()) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(50))
+                    .clickable(onClick = svuota),
+                contentAlignment = Alignment.Center,
+            ) {
+                Croce(c.neutral500, Modifier.size(15.dp))
+            }
+        }
     }
 }
 
