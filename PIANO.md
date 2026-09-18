@@ -39,86 +39,87 @@ per riaverle in Kotlin, quel lavoro va fermato.
 
 ## 2. Ordine dei lavori
 
-L'ordine non segue le schermate del web: mette davanti ciò che il nativo fa
-meglio, e rimanda la parità di funzioni che la PWA già serve bene.
+**Deciso il 18/09/2026: prima la parità con il web, poi il widget.**
 
-### Fase 0 — fatta
+L'ordine iniziale metteva il widget al terzo posto, perché è l'unica cosa che
+il web non può fare, e rimandava la parità. È stato invertito su richiesta, con
+un argomento più forte: pubblicare sullo store qualcosa che fa meno del sito
+già esistente significa che chi lo prova confronta e perde.
 
-Scheletro che compila, si installa e si avvia. Due trappole di AGP 9
-documentate nel primo commit.
+La conseguenza va scritta, perché è il rischio che ci prendiamo: ogni funzione
+di parità raddoppia il costo di manutenzione senza aggiungere nulla che il web
+non faccia, e la ragione per cui vale installare l'app arriva per ultima. Se a
+metà strada l'app non è ancora usata da nessuno, quel lavoro è stato speso
+male. Il segnale per fermarsi e ripensarci è questo: **se ci accorgiamo di
+riscrivere una schermata solo per riaverla in Kotlin, quella schermata si
+salta.**
 
-### Fase 1 — aspetto: palette, barre di sistema, tipografia
+### Fatto
 
-Prima di ogni contenuto, perché da qui in avanti ogni schermata che guardo la
-giudico sul nostro disegno e non sui valori di serie di Material.
+| | |
+|---|---|
+| **0** | Scheletro su AGP 9.4 e Compose, due trappole documentate |
+| **1** | Palette "palina", tipografia, Barlow con la variante condensata, barre di sistema |
+| **2** | Arrivi a una fermata dalle API di produzione, aggiornamento ogni 15s, errori |
+| **3a** | Ricerca fermate, navigazione tipizzata, indietro di sistema |
+| **3b** | Preferiti persistenti su DataStore |
 
-- Palette portata dal web **con gli stessi valori esadecimali**: basalto per la
-  struttura, rosso ATAC, verde del dato vivo, ambra degli avvisi. La regola del
-  web vale identica: **la struttura è acromatica, il colore è un dato.**
-- Tema chiaro e scuro, con la scala neutra ribaltata come in `globals.css`. E
-  l'ambra e il rosso vanno ribaltati anche qui: sul web dimenticarlo ha reso
-  illeggibili gli avvisi in modalità scura.
-- Aspetto delle barre di sistema coerente col tema: adesso le icone sono bianche
-  su fondo chiaro e non si leggono.
-- Il carattere **Barlow** in fondo alla fase: richiede di impacchettare i file
-  del font, ed è l'unica parte che non è configurazione.
+### Da fare, in ordine
 
-### Fase 2 — la spina dorsale: arrivi a una fermata
+**3c — fermate vicine.** Completa la schermata iniziale. Permesso di posizione
+chiesto al tocco e mai all'avvio, come sul web. `GET /api/stops/nearby`.
 
-È la schermata per cui esiste l'app, e contiene tutte le incognite tecniche in
-un colpo: HTTP, JSON, stato, aggiornamento periodico, errori.
+**3d — riordino dei preferiti per trascinamento.** Sul web era un requisito
+esplicito («voglio il drag vero da subito»). In Compose non c'è niente di
+pronto: va fatto con `detectDragGesturesAfterLongPress` e gli scostamenti a
+mano. `Preferiti.sposta()` esiste già.
 
-- `GET /api/stops/{id}/arrivals`
-- Lista con distintivo linea, destinazione, attesa. Verde se tracciato in tempo
-  reale, grigio se da tabella — la distinzione più importante dell'app.
-- Aggiornamento ogni 15 secondi **solo a schermata visibile**, come fa
-  `usePolling` sul web sospendendo in background.
-- Errore: si mostrano gli ultimi dati validi con un avviso, non una schermata
-  vuota. Un errore di rete non deve cancellare l'informazione che l'utente
-  stava leggendo.
+**4 — completamento della schermata fermata.** Il contorno che sul web c'è e
+qui no: gli avvisi di servizio sulla riga della linea coinvolta (col triangolo
+non interattivo, come corretto sul web), lo stato del feed in cima, il tasto
+del tema. `GET /api/alerts?stop=`, `GET /api/status`.
 
-### Fase 3 — come ci si arriva: ricerca e preferiti
+**5 — pagina linea e pagina corsa, senza mappa.** Versi, elenco fermate,
+orari, mezzi in linea, avvisi della linea. Sono due schermate grosse ma senza
+incognite: le API esistono e restituiscono esattamente ciò che serve.
 
-- `GET /api/stops/search` per la ricerca.
-- Preferiti salvati in locale, illimitati, riordinabili. Come sul web: sono la
-  cosa più utile al primo colpo perché non chiedono il permesso di posizione.
-- Posizione solo su richiesta esplicita, per `GET /api/stops/nearby`.
+**6 — la mappa.** MapLibre ha l'SDK nativo e lo stile di `mapStyle.ts` si
+riusa, ma è la dipendenza più pesante di tutte e serve a tre schermate (linea,
+corsa, e in futuro itinerario). Sta a sé perché è l'unico punto in cui il
+lavoro non è una traduzione ma una reimplementazione.
 
-### Fase 4 — il widget
+**7 — pianificatore percorsi.** La schermata più complessa del web: due capi
+con geocodifica, elenco di opzioni, dettaglio itinerario. Il client resta
+stupido — il calcolo è tutto in `/api/plan` — ma l'interfaccia è articolata.
+Va portata con la stessa onestà del web: dichiarare che gli orari sono da
+tabella e senza tempo reale.
 
-La ragione per cui stiamo facendo l'app. Va progettato a parte perché ha
-vincoli che le schermate non hanno.
+**8 — ritardi e avvisi.** Due schermate di sola lettura, le più semplici del
+lotto. Le lascio tardi proprio per questo: non sbloccano niente.
 
-- Mostra il prossimo passaggio a una fermata preferita, scelta configurando il
-  widget.
-- Si aggiorna con `WorkManager`, e **non** ogni quindici secondi: Android
-  strozza gli aggiornamenti dei widget e il sistema può ignorarli. Va accettato
-  che il dato sia vecchio di qualche minuto, e **scritto sul widget a che ora è
-  aggiornato** — la stessa onestà della striscia `FeedStatus` sul web.
-- Una sola richiesta HTTP per aggiornamento. Se serve, si aggiunge lato server
-  un endpoint che restituisce esattamente ciò che il widget mostra.
+**9 — notifiche (richiede lavoro sul server).** Rimandata per scelta
+dell'utente. Il worker parla solo Web Push con VAPID: servono un percorso FCM
+in `worker/push.ts`, le credenziali Firebase, e una colonna in
+`push_subscriptions` per distinguere il tipo di destinatario. Le regole sono
+già tarate sul web: finestra di 5 minuti, campanella nascosta sotto i 3.
 
-### Fase 5 — notifiche (richiede lavoro sul server)
+**10 — il widget.** La ragione per cui l'app nativa esiste, e adesso arriva per
+ultima. Vincoli già noti: Android strozza gli aggiornamenti, quindi va accettato
+che il dato sia vecchio di qualche minuto e **scritto sul widget a che ora è
+aggiornato** — la stessa onestà della striscia `FeedStatus`. Una sola richiesta
+HTTP per aggiornamento, con `WorkManager`.
 
-Rimandata per scelta: è l'unica fase che tocca il backend.
+### Cosa NON portiamo
 
-- Il worker oggi parla solo Web Push con VAPID. Servono un percorso FCM in
-  `worker/push.ts`, le credenziali del progetto Firebase, e una colonna in
-  `push_subscriptions` che distingua il tipo di destinatario.
-- Le regole restano quelle del web, già tarate: finestra di 5 minuti, e la
-  campanella non si offre sotto i 3 minuti perché la notifica arriverebbe
-  troppo tardi.
-
-### Fase 6 — parità: percorsi, ritardi, avvisi
-
-Ultime perché la PWA le serve già bene e nessuna guadagna dal nativo. Da farsi
-solo se l'app viene usata e la gente le chiede.
-
-La **mappa** va valutata a parte: MapLibre ha l'SDK nativo e lo stile si
-riusa, ma è la dipendenza più pesante di tutte. Non entra in una prima
-versione.
-
----
+- **Il banner del caffè.** Su una pagina web ha senso, in un'app pubblicata
+  sullo store le regole sulle donazioni sono un'altra faccenda e non vale
+  aprirla adesso.
+- **La schermata di benvenuto** al primo avvio, per ora: sul web serviva a
+  spiegare cos'è l'app a chi arriva da un link. Chi installa dallo store ha
+  già letto la descrizione.
+- **Il service worker e la pagina privacy**: la prima non esiste come concetto,
+  la seconda diventa un collegamento al sito, che è anche ciò che il Play Store
+  richiede.
 
 ## 3. Decisioni tecniche
 
