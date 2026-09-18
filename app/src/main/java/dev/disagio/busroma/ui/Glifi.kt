@@ -58,3 +58,37 @@ fun Stella(
         }
     }
 }
+
+/**
+ * La palina: palo verticale con la targhetta in cima. È il glifo della
+ * sezione "Fermate", e sul web è `StopGlyph`.
+ */
+@Composable
+fun Palina(colore: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        val spessore = l * 0.08f
+        // Targhetta: un rettangolo nella metà superiore, spostato a sinistra
+        // perché il palo passa a destra - come le paline vere.
+        drawRoundRect(
+            color = colore,
+            topLeft = Offset(l * 0.12f, l * 0.13f),
+            size = androidx.compose.ui.geometry.Size(l * 0.58f, l * 0.36f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(l * 0.06f),
+            style = Stroke(width = spessore),
+        )
+        // Palo e base.
+        drawLine(
+            color = colore,
+            start = Offset(l * 0.70f, l * 0.13f),
+            end = Offset(l * 0.70f, l * 0.87f),
+            strokeWidth = spessore,
+        )
+        drawLine(
+            color = colore,
+            start = Offset(l * 0.50f, l * 0.87f),
+            end = Offset(l * 0.90f, l * 0.87f),
+            strokeWidth = spessore,
+        )
+    }
+}

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -60,6 +61,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SchermataRicerca(
     apriFermata: (stopId: String) -> Unit,
+    apriPreferiti: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val vm: RicercaViewModel = viewModel()
@@ -89,9 +91,7 @@ fun SchermataRicerca(
             stato.testo.isBlank() -> Column(
                 Modifier.verticalScroll(rememberScrollState()),
             ) {
-                Preferiti(preferiti, c, apriFermata) { stopId ->
-                    scope.launch { DepositoPreferiti.rimuovi(contesto, stopId) }
-                }
+                Preferiti(preferiti, c, apriFermata, apriPreferiti)
                 Spacer(Modifier.height(20.dp))
                 SezioneVicine(apriFermata, c)
                 Spacer(Modifier.height(24.dp))
@@ -215,64 +215,68 @@ private fun Preferiti(
     elenco: List<FermataPreferita>,
     c: Palette,
     apri: (String) -> Unit,
-    rimuovi: (String) -> Unit,
+    apriTutti: () -> Unit,
 ) {
     if (elenco.isEmpty()) {
         Nota(
-            "Nessun preferito. Apri una fermata e tocca la stella: comparir\u00e0 qui, " +
+            "Nessun preferito. Apri una fermata e tocca la stella: comparirà qui, " +
                 "senza bisogno di cercarla ogni volta.",
             c,
         )
         return
     }
 
+    // TRE, come sul web. La schermata iniziale deve stare sopra la piega: una
+    // lista di quindici preferiti spingerebbe le fermate vicine fuori vista.
+    val mostrati = elenco.take(3)
+    val resto = elenco.size - mostrati.size
+
     Column {
-        Text(
-            text = "Preferiti",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = c.neutral500,
-            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
-        )
-        elenco.forEach { f ->
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Preferiti",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = c.neutral500,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = if (resto > 0) "Vedi tutti (${elenco.size})" else "Gestisci",
+                style = MaterialTheme.typography.bodySmall,
+                color = c.neutral500,
+                modifier = Modifier
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClick = apriTutti)
+                    .padding(horizontal = 10.dp, vertical = 13.dp),
+            )
+        }
+        // Nessuna stella di rimozione qui: togliere un preferito e' un'azione
+        // di gestione, e la gestione ha la sua schermata. In home la riga fa
+        // una cosa sola, aprire la fermata.
+        mostrati.forEach { f ->
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { apri(f.stopId) }
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
             ) {
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clickable { apri(f.stopId) }
-                        .padding(start = 16.dp, top = 11.dp, bottom = 11.dp),
-                ) {
+                Text(
+                    text = f.nome,
+                    style = stileNome,
+                    color = c.neutral900,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                f.palina?.let {
                     Text(
-                        text = f.nome,
-                        style = stileNome,
-                        color = c.neutral900,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        text = "palina $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.neutral500,
                     )
-                    f.palina?.let {
-                        Text(
-                            text = "palina $it",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = c.neutral500,
-                        )
-                    }
-                }
-                // La stella rimuove. E' un riquadro separato da 48dp, non
-                // sovrapposto alla colonna che apre: due bersagli distinti su
-                // una riga vanno tenuti lontani, altrimenti si sbaglia tocco -
-                // ed e' la lezione imparata sul web con triangolo e campanella
-                // adiacenti.
-                Box(
-                    Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(50))
-                        .clickable { rimuovi(f.stopId) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Stella(piena = true, colore = c.brand500, modifier = Modifier.size(22.dp))
                 }
             }
             HorizontalDivider(color = c.neutral200)

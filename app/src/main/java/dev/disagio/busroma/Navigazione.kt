@@ -1,58 +1,112 @@
 package dev.disagio.busroma
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.disagio.busroma.arrivi.SchermataArrivi
+import dev.disagio.busroma.preferiti.SchermataPreferiti
 import dev.disagio.busroma.ricerca.SchermataRicerca
+import dev.disagio.busroma.ui.NavigazioneBasso
+import dev.disagio.busroma.ui.Sezione
+import dev.disagio.busroma.ui.theme.LocalPalette
 import kotlinx.serialization.Serializable
 
 /**
  * Le destinazioni, come tipi e non come stringhe.
  *
  * Navigation Compose accetta rotte tipizzate serializzabili: l'identificativo
- * di fermata viaggia come proprietà invece che dentro un percorso da comporre
- * e ricomporre a mano. Le fermate romane hanno identificativi alfanumerici e
- * una di quelle stringhe costruite a mano è il modo classico di scoprire, tre
- * mesi dopo, che una palina con un carattere insolito rompe la navigazione.
+ * di fermata viaggia come proprietà invece che dentro un percorso da
+ * comporre a mano. Le fermate romane hanno identificativi alfanumerici, e una
+ * di quelle stringhe costruite a mano è il modo classico di scoprire tre mesi
+ * dopo che una palina con un carattere insolito rompe la navigazione.
  */
 @Serializable
 object Ricerca
 
 @Serializable
+object Preferiti
+
+@Serializable
 data class Arrivi(val stopId: String)
 
 /**
- * L'albero di navigazione.
+ * L'albero di navigazione, con la barra in basso.
  *
- * Il tasto indietro è quello di sistema e basta: non c'è un indietro disegnato
- * in cima. Su Android la gestualità di sistema è l'indietro, e aggiungerne un
- * secondo sarebbe rumore — sul web invece serviva, perché il browser non ha un
- * gesto affidabile dentro una PWA installata.
+ * LA BARRA COMPARE SOLO SULLE DESTINAZIONI PRINCIPALI. Sulla schermata di una
+ * fermata si è scesi in profondità, e da lì l'uscita è l'indietro di
+ * sistema: tenere la barra darebbe due modi di andarsene e nessuno dei due
+ * chiaro.
+ *
+ * Il tasto indietro è quello di sistema e basta, nessun indietro disegnato in
+ * cima: su Android la gestualità di sistema è l'indietro, e aggiungerne un
+ * secondo sarebbe rumore. Sul web invece serviva, perché dentro una PWA
+ * installata il browser non offre un gesto affidabile.
  */
 @Composable
 fun AppBusRoma() {
     val nav = rememberNavController()
+    val voce by nav.currentBackStackEntryAsState()
+    val destinazione = voce?.destination
 
-    Scaffold { padding ->
+    val sezione = when {
+        destinazione?.hasRoute<Preferiti>() == true -> Sezione.Preferiti
+        destinazione?.hasRoute<Ricerca>() == true -> Sezione.Fermate
+        else -> null
+    }
+
+    // Lo sfondo va messo sulla RADICE e non dentro le schermate: con il disegno
+    // a tutto schermo l'area della barra di stato resta dipinta con lo sfondo
+    // della finestra, che e' chiaro, e in tema scuro compariva una fascia
+    // bianca in cima. Lo Scaffold lo faceva da se': togliendolo, va rifatto.
+    Column(Modifier.fillMaxSize().background(LocalPalette.current.neutral100)) {
         NavHost(
             navController = nav,
             startDestination = Ricerca,
-            modifier = Modifier.padding(padding),
+            // statusBarsPadding QUI e non uno Scaffold intorno: sostituendo lo
+            // Scaffold con questa Column avevo perso la spaziatura in alto e i
+            // titoli finivano sotto le icone della barra di stato. In basso
+            // ci pensa NavigazioneBasso con navigationBarsPadding.
+            modifier = Modifier.weight(1f).statusBarsPadding(),
         ) {
             composable<Ricerca> {
                 SchermataRicerca(
                     apriFermata = { stopId -> nav.navigate(Arrivi(stopId)) },
+                    apriPreferiti = { nav.navigate(Preferiti) },
                 )
             }
-            composable<Arrivi> { voce ->
-                val rotta: Arrivi = voce.toRoute()
+            composable<Preferiti> {
+                SchermataPreferiti(apri = { stopId -> nav.navigate(Arrivi(stopId)) })
+            }
+            composable<Arrivi> { v ->
+                val rotta: Arrivi = v.toRoute()
                 SchermataArrivi(stopId = rotta.stopId)
+            }
+        }
+
+        if (sezione != null) {
+            NavigazioneBasso(attiva = sezione) { scelta ->
+                when (scelta) {
+                    // launchSingleTop: toccare due volte la stessa voce non
+                    // impila due copie della schermata.
+                    Sezione.Fermate -> nav.navigate(Ricerca) {
+                        popUpTo(Ricerca) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    Sezione.Preferiti -> nav.navigate(Preferiti) {
+                        launchSingleTop = true
+                    }
+                }
             }
         }
     }
