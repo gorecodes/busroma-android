@@ -78,4 +78,11 @@ object Api {
     /** Ricerca fermata per nome o numero di palina. */
     suspend fun cercaFermate(query: String): RispostaRicerca =
         client.get("$base/api/stops/search") { parameter("q", query) }.body()
+
+    /** Fermate intorno a una posizione, ordinate per distanza in linea d'aria. */
+    suspend fun fermateVicine(lat: Double, lon: Double): RispostaVicine =
+        client.get("$base/api/stops/nearby") {
+            parameter("lat", lat)
+            parameter("lon", lon)
+        }.body()
 }

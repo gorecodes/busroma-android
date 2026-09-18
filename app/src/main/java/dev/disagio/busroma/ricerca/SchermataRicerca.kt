@@ -3,6 +3,8 @@ package dev.disagio.busroma.ricerca
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -84,8 +86,15 @@ fun SchermataRicerca(
             // A campo vuoto la schermata mostra i preferiti, non un
             // suggerimento: sono la cosa piu' utile al primo colpo perche' non
             // chiedono il permesso di posizione ne' una digitazione.
-            stato.testo.isBlank() -> Preferiti(preferiti, c, apriFermata) { stopId ->
-                scope.launch { DepositoPreferiti.rimuovi(contesto, stopId) }
+            stato.testo.isBlank() -> Column(
+                Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                Preferiti(preferiti, c, apriFermata) { stopId ->
+                    scope.launch { DepositoPreferiti.rimuovi(contesto, stopId) }
+                }
+                Spacer(Modifier.height(20.dp))
+                SezioneVicine(apriFermata, c)
+                Spacer(Modifier.height(24.dp))
             }
             stato.errore -> Nota("La ricerca non risponde.", c)
             stato.risultati.isEmpty() && !stato.cercando -> Nota("Nessuna fermata con questo nome.", c)
@@ -210,7 +219,7 @@ private fun Preferiti(
 ) {
     if (elenco.isEmpty()) {
         Nota(
-            "Nessun preferito. Apri una fermata e tocca la stella: comparira' qui, " +
+            "Nessun preferito. Apri una fermata e tocca la stella: comparir\u00e0 qui, " +
                 "senza bisogno di cercarla ogni volta.",
             c,
         )
@@ -225,45 +234,48 @@ private fun Preferiti(
             color = c.neutral500,
             modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
         )
-        LazyColumn {
-            items(elenco, key = { it.stopId }) { f ->
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+        elenco.forEach { f ->
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clickable { apri(f.stopId) }
+                        .padding(start = 16.dp, top = 11.dp, bottom = 11.dp),
                 ) {
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .clickable { apri(f.stopId) }
-                            .padding(start = 16.dp, top = 11.dp, bottom = 11.dp),
-                    ) {
+                    Text(
+                        text = f.nome,
+                        style = stileNome,
+                        color = c.neutral900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    f.palina?.let {
                         Text(
-                            text = f.nome,
-                            style = stileNome,
-                            color = c.neutral900,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            text = "palina $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.neutral500,
                         )
-                        f.palina?.let {
-                            Text(
-                                text = "palina $it",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = c.neutral500,
-                            )
-                        }
-                    }
-                    Box(
-                        Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(50))
-                            .clickable { rimuovi(f.stopId) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Stella(piena = true, colore = c.brand500, modifier = Modifier.size(22.dp))
                     }
                 }
-                HorizontalDivider(color = c.neutral200)
+                // La stella rimuove. E' un riquadro separato da 48dp, non
+                // sovrapposto alla colonna che apre: due bersagli distinti su
+                // una riga vanno tenuti lontani, altrimenti si sbaglia tocco -
+                // ed e' la lezione imparata sul web con triangolo e campanella
+                // adiacenti.
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(50))
+                        .clickable { rimuovi(f.stopId) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Stella(piena = true, colore = c.brand500, modifier = Modifier.size(22.dp))
+                }
             }
+            HorizontalDivider(color = c.neutral200)
         }
     }
 }

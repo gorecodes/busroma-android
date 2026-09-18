@@ -5,6 +5,15 @@
          con un errore che non nomina il permesso. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Posizione: solo APPROSSIMATA. Per sapere quali fermate hai intorno
+         bastano un centinaio di metri di precisione, e chiedere quella fine
+         sarebbe chiedere piu' del necessario - cosa che l'utente vede nella
+         schermata del permesso e che il Play Store chiede di giustificare.
+         Non e' obbligatoria: l'app funziona interamente con ricerca e
+         preferiti, quindi required="false". -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+
     <application
         android:label="Bus Roma"
         android:supportsRtl="true"

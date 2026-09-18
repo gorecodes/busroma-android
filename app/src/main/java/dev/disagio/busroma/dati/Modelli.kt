@@ -77,3 +77,27 @@ data class FermataTrovata(
     /** Le linee che fermano lì, per nome conosciuto ("117", "MEA"). */
     val routes: List<String> = emptyList(),
 )
+
+@Serializable
+data class RispostaVicine(
+    val stops: List<FermataVicina> = emptyList(),
+)
+
+@Serializable
+data class FermataVicina(
+    @SerialName("stop_id") val stopId: String,
+    val name: String,
+    val code: String? = null,
+    /**
+     * Distanza in metri calcolata dal server con PostGIS.
+     *
+     * È in LINEA D'ARIA, non a piedi. Sul web questa distinzione è costata la
+     * giornata di lavoro più importante del progetto: su una fermata la linea
+     * d'aria diceva 396 metri dove la strada reale era 4475, e il
+     * pianificatore costruiva itinerari impossibili. Qui è accettabile perché
+     * serve solo a ORDINARE le fermate vicine, non a dire quanto ci metti — e
+     * per lo stesso motivo non va scritto "a 3 minuti a piedi".
+     */
+    @SerialName("distance_m") val distanzaM: Int? = null,
+    val routes: List<String> = emptyList(),
+)
