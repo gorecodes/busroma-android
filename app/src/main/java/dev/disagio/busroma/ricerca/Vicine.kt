@@ -100,7 +100,7 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                 text = "Qui intorno",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
-                color = c.neutral500,
+                color = c.brand500,
                 modifier = Modifier.weight(1f),
             )
             if (stato is StatoVicine.Trovati) {

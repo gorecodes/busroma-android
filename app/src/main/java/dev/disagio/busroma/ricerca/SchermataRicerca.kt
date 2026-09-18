@@ -230,7 +230,14 @@ private fun CampoRicerca(
         modifier = Modifier
             .fillMaxWidth()
             .background(c.neutral50, RoundedCornerShape(4.dp))
-            .border(1.dp, c.neutral300, RoundedCornerShape(4.dp))
+            // L'anello di fuoco porta il colore d'identita' e si ispessisce.
+            // Il solo cambio di tinta su un filetto da 1dp non si vede: e' il
+            // doppio spessore che dice "sto scrivendo qui".
+            .border(
+                if (aFuoco) 2.dp else 1.dp,
+                if (aFuoco) c.brand500 else c.neutral300,
+                RoundedCornerShape(4.dp),
+            )
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -365,13 +372,18 @@ private fun Preferiti(
                 text = "Preferiti",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
-                color = c.neutral500,
+                // Etichetta di sezione nel colore d'identita': e' l'intestazione
+                // della struttura, non un dato del trasporto.
+                color = c.brand500,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = if (resto > 0) "Vedi tutti (${elenco.size})" else "Gestisci",
                 style = MaterialTheme.typography.bodySmall,
-                color = c.neutral500,
+                // Gradino 600 come "Aggiorna" nella sezione accanto: i due
+                // collegamenti nelle intestazioni di sezione erano di due
+                // colori diversi senza motivo.
+                color = c.brand600,
                 modifier = Modifier
                     .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(4.dp))
@@ -390,13 +402,20 @@ private fun Preferiti(
     }
 }
 
+/**
+ * Etichetta di sezione, nel colore d'identità.
+ *
+ * Il colore qui non è decorazione: le etichette di sezione sono
+ * l'intestazione della struttura, non un dato del trasporto, e sono il posto
+ * dove il porpora istituzionale può comparire senza dire niente di falso.
+ */
 @Composable
 private fun Titoletto(testo: String, c: Palette) {
     Text(
         text = testo,
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.SemiBold,
-        color = c.neutral500,
+        color = c.brand500,
         modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp),
     )
 }
@@ -475,13 +494,13 @@ private fun Storico(
                 text = "Ultime ricerche",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
-                color = c.neutral500,
+                color = c.brand500,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = "Svuota",
                 style = MaterialTheme.typography.bodySmall,
-                color = c.neutral500,
+                color = c.brand600,
                 modifier = Modifier
                     .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(4.dp))

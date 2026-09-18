@@ -176,13 +176,20 @@ private fun Linee(linee: List<String>, c: Palette) {
     )
 }
 
+/**
+ * Etichetta di sezione, nel colore d'identità.
+ *
+ * Il colore qui non è decorazione: le etichette di sezione sono
+ * l'intestazione della struttura, non un dato del trasporto, e sono il posto
+ * dove il porpora istituzionale può comparire senza dire niente di falso.
+ */
 @Composable
 private fun Titoletto(testo: String, c: Palette) {
     Text(
         text = testo,
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.SemiBold,
-        color = c.neutral500,
+        color = c.brand500,
         modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 4.dp),
     )
 }
