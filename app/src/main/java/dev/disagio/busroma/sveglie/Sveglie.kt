@@ -1,6 +1,11 @@
 package dev.disagio.busroma.sveglie
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import androidx.core.content.getSystemService
+import dev.disagio.busroma.MainActivity
 
 /**
  * Le sveglie del sistema operativo.
@@ -22,9 +27,25 @@ object Sveglie {
      * `FLAG_UPDATE_CURRENT`, così riprogrammare non accumula sveglie: una
      * vigilanza, una sveglia.
      */
-    fun programma(context: Context, chiave: String, istanteMs: Long): Unit = TODO()
+    fun programma(context: Context, chiave: String, istanteMs: Long) {
+        val gestore = context.getSystemService<AlarmManager>() ?: return
+        // L'icona nella barra apre MainActivity: chi ha un bus in arrivo
+        // toccandola torna alla schermata, non finisce nel vuoto.
+        val showIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        gestore.setAlarmClock(
+            AlarmManager.AlarmClockInfo(istanteMs, showIntent),
+            operazione(context, chiave),
+        )
+    }
 
-    fun annulla(context: Context, chiave: String): Unit = TODO()
+    fun annulla(context: Context, chiave: String) {
+        context.getSystemService<AlarmManager>()?.cancel(operazione(context, chiave))
+    }
 
     /**
      * Riarma tutte le vigilanze del deposito.
@@ -34,5 +55,22 @@ object Sveglie {
      * sicurezza per il caso in cui il sistema le abbia perse per altre strade.
      * Deve essere idempotente.
      */
-    suspend fun riarmaTutte(context: Context): Unit = TODO()
+    suspend fun riarmaTutte(context: Context) {
+        val adesso = System.currentTimeMillis()
+        // MINIMO_MS e non un calcolo sull'ETA salvata: è un risveglio immediato
+        // che si autoprogramma secondo la scala, più robusto che indovinare
+        // l'istante giusto qui senza conoscere l'ETA fresco.
+        Vigilanze.elenco(context).forEach { v ->
+            programma(context, v.chiave, adesso + MINIMO_MS)
+        }
+    }
+
+    /** Il PendingIntent che punta a [RicevitoreSveglia] con la [chiave] negli extra. */
+    private fun operazione(context: Context, chiave: String): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            chiave.hashCode(),
+            Intent(context, RicevitoreSveglia::class.java).putExtra("chiave", chiave),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
 }
