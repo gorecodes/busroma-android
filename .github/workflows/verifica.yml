@@ -1,0 +1,51 @@
+# Verifica a ogni spinta: test unitari e build di debug.
+#
+# Esiste per due ragioni: dire subito se un cambiamento rompe qualcosa, e
+# lasciare una traccia pubblica di build riuscite — chi rivede una richiesta di
+# inclusione su F-Droid guarda anche questo.
+name: Verifica
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Java 25 e non 21: il criterio in gradle/gradle-daemon-jvm.properties
+      # dice toolchainVersion=25, e senza un JDK 25 già presente Gradle se lo
+      # scaricherebbe da foojay a ogni esecuzione.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: android-actions/setup-android@v3
+
+      # La piattaforma va installata per nome ESATTO, minor compresa: il
+      # progetto compila contro android-37.2, e con la 37.0 le librerie
+      # AndroidX si rifiutano di essere compilate.
+      - name: Piattaforma Android
+        run: sdkmanager --install "platforms;android-37.2" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Test unitari
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build di debug
+        run: ./gradlew assembleDebug
+
+      # Se i test cadono, i referti servono più del messaggio in console.
+      - name: Referti dei test
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: referti-test
+          path: app/build/reports/tests/

@@ -1,0 +1,160 @@
+# Rilascio automatico: la versione sta nel build script, e il resto segue.
+#
+# COME SI PUBBLICA UNA VERSIONE: si alzano `versionCode` e `versionName` in
+# app/build.gradle.kts e si spinge su master. Questo workflow vede che per quel
+# `versionName` non esiste ancora un tag, costruisce l'APK di rilascio, crea il
+# tag `v<versionName>` e pubblica la release con l'APK allegato. Se il tag c'è
+# già non fa niente, quindi le spinte normali non producono rilasci.
+#
+# TAG E RELEASE NELLO STESSO LAVORO, di proposito: un tag creato con il
+# GITHUB_TOKEN non fa scattare altri workflow, quindi la catena
+# "workflow che tagga" → "workflow che rilascia" si fermerebbe a metà senza
+# dire perché. Un lavoro solo non ha quel problema.
+name: Rilascio
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Serve a creare il tag e la release.
+permissions:
+  contents: write
+
+jobs:
+  rilascio:
+    runs-on: ubuntu-latest
+
+    # I secret della firma stanno QUI e non dentro il passo che li usa: l'`if`
+    # di un passo non vede l'`env` dichiarato nel passo stesso, quindi la
+    # condizione "la chiave c'è?" non funzionerebbe.
+    env:
+      FIRMA_KEYSTORE_BASE64: ${{ secrets.FIRMA_KEYSTORE_BASE64 }}
+      FIRMA_STORE_PASSWORD: ${{ secrets.FIRMA_STORE_PASSWORD }}
+      FIRMA_KEY_ALIAS: ${{ secrets.FIRMA_KEY_ALIAS }}
+      FIRMA_KEY_PASSWORD: ${{ secrets.FIRMA_KEY_PASSWORD }}
+
+    steps:
+      # fetch-depth: 0 perché senza la storia completa i tag non ci sono, e il
+      # controllo "esiste già?" risponderebbe sempre no.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Versione dal build script
+        id: versione
+        run: |
+          nome=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          codice=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          if [ -z "$nome" ] || [ -z "$codice" ]; then
+            echo "Non riesco a leggere versionName/versionCode da app/build.gradle.kts" >&2
+            exit 1
+          fi
+          echo "nome=$nome" >> "$GITHUB_OUTPUT"
+          echo "codice=$codice" >> "$GITHUB_OUTPUT"
+          echo "tag=v$nome" >> "$GITHUB_OUTPUT"
+          echo "Versione $nome (codice $codice)"
+
+      - name: Esiste già il tag?
+        id: tag
+        run: |
+          if git rev-parse -q --verify "refs/tags/${{ steps.versione.outputs.tag }}" >/dev/null; then
+            echo "Tag ${{ steps.versione.outputs.tag }} già presente: niente da rilasciare."
+            echo "nuovo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "nuovo=si" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.tag.outputs.nuovo == 'si'
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: android-actions/setup-android@v3
+        if: steps.tag.outputs.nuovo == 'si'
+
+      - name: Piattaforma Android
+        if: steps.tag.outputs.nuovo == 'si'
+        run: sdkmanager --install "platforms;android-37.2" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.tag.outputs.nuovo == 'si'
+
+      # LA CHIAVE DI FIRMA NON STA NEL REPOSITORY, e nemmeno qui: arriva dai
+      # secret, e se non ci sono l'APK esce NON FIRMATO invece di far fallire la
+      # build. Un APK non firmato non si installa su un telefono, ma resta utile
+      # come prova che il rilascio compila — e a F-Droid serve proprio quello,
+      # perché firma con la propria chiave.
+      #
+      # Si ricostruisce il file che il build script cerca da sé
+      # (~/.busroma/firma.properties): così la firma in CI non richiede
+      # nessuna modifica a app/build.gradle.kts.
+      #
+      # Per attivarla:
+      #   base64 -w0 ~/.busroma/busroma.jks | gh secret set FIRMA_KEYSTORE_BASE64
+      #   gh secret set FIRMA_STORE_PASSWORD
+      #   gh secret set FIRMA_KEY_ALIAS
+      #   gh secret set FIRMA_KEY_PASSWORD
+      - name: Chiave di firma, se c'è
+        if: steps.tag.outputs.nuovo == 'si' && env.FIRMA_KEYSTORE_BASE64 != ''
+        run: |
+          umask 077
+          mkdir -p "$HOME/.busroma"
+          echo "$FIRMA_KEYSTORE_BASE64" | base64 -d > "$HOME/.busroma/busroma.jks"
+          cat > "$HOME/.busroma/firma.properties" <<PROPS
+          storeFile=$HOME/.busroma/busroma.jks
+          storePassword=$FIRMA_STORE_PASSWORD
+          keyAlias=$FIRMA_KEY_ALIAS
+          keyPassword=$FIRMA_KEY_PASSWORD
+          PROPS
+
+      # La chiave MapTiler è opzionale: senza, la mappa ricade sulle tessere
+      # raster di OpenStreetMap, esattamente come fa il web.
+      - name: Build di rilascio
+        if: steps.tag.outputs.nuovo == 'si'
+        run: ./gradlew assembleRelease -PmaptilerKey="${{ secrets.MAPTILER_KEY }}"
+
+      # Il nome del file dice la versione e se è firmato: chi lo scarica da una
+      # release deve saperlo prima di provare a installarlo.
+      - name: Nome dell'APK
+        if: steps.tag.outputs.nuovo == 'si'
+        id: apk
+        run: |
+          nome="${{ steps.versione.outputs.nome }}"
+          firmato=$(ls app/build/outputs/apk/release/*.apk | grep -v unsigned || true)
+          if [ -n "$firmato" ]; then
+            cp "$firmato" "busroma-$nome.apk"
+            echo "file=busroma-$nome.apk" >> "$GITHUB_OUTPUT"
+            echo "firmato=si" >> "$GITHUB_OUTPUT"
+          else
+            cp app/build/outputs/apk/release/*unsigned*.apk "busroma-$nome-non-firmato.apk"
+            echo "file=busroma-$nome-non-firmato.apk" >> "$GITHUB_OUTPUT"
+            echo "firmato=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Le note della release: se esiste il changelog di fastlane per questo
+      # versionCode si usa quello — è il testo che legge anche F-Droid, e
+      # scriverlo due volte vuol dire vederlo divergere.
+      - name: Note della release
+        if: steps.tag.outputs.nuovo == 'si'
+        id: note
+        run: |
+          changelog="fastlane/metadata/android/it-IT/changelogs/${{ steps.versione.outputs.codice }}.txt"
+          if [ -f "$changelog" ]; then
+            echo "percorso=$changelog" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${{ steps.apk.outputs.firmato }}" = "no" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "APK NON firmato: i secret della chiave non sono configurati." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Tag e release
+        if: steps.tag.outputs.nuovo == 'si'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versione.outputs.tag }}
+          name: ${{ steps.versione.outputs.tag }}
+          body_path: ${{ steps.note.outputs.percorso }}
+          generate_release_notes: ${{ steps.note.outputs.percorso == '' }}
+          files: ${{ steps.apk.outputs.file }}
