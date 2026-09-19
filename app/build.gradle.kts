@@ -39,8 +39,8 @@ android {
         // Compose parte dalla 21: non c'e' motivo di alzare l'asticella.
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.1.7"
+        versionCode = 9
+        versionName = "0.1.8"
     }
 
     signingConfigs {

@@ -1,0 +1,7 @@
+Orario completo della linea: dalla pagina di una linea, sotto la mappa, ci
+sono le prossime partenze dal capolinea e "Tutto l'orario", che apre tutte le
+partenze del giorno raggruppate per ora, con oggi e domani.
+
+Inoltre: cambiando verso non restano più i mezzi del verso precedente, il
+verso scelto non si azzera più tornando indietro, e un'installazione di
+aggiornamento non completata ora lo dice invece di restare zitta.
