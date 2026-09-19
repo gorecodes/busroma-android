@@ -145,6 +145,24 @@ object Api {
     suspend fun avvisiLinea(routeId: String): RispostaAvvisi =
         client.get("$base/api/alerts") { parameter("route", routeId) }.body()
 
+    /**
+     * L'orario COMPLETO di una linea a una fermata, per UN giorno: non i
+     * prossimi passaggi ma tutte le partenze programmate, come un orario di
+     * carta appeso alla palina.
+     *
+     * [data] va SEMPRE passata, in ISO `YYYY-MM-DD` e nel fuso di Roma.
+     * DIFETTO DEL SERVER VERIFICATO: la funzione SQL ha un default su oggi,
+     * ma l'endpoint le passa un NULL esplicito quando il parametro manca, e
+     * un NULL non attiva un default — la risposta torna vuota anche se le
+     * corse ci sono. Si aggira qui, non aspettando la correzione lato server.
+     */
+    suspend fun orarioCompleto(routeId: String, stopId: String, verso: Int, data: String): RispostaOrarioCompleto =
+        client.get("$base/api/routes/${routeId.encodeURLPathPart()}/timetable") {
+            parameter("stop", stopId)
+            parameter("dir", verso)
+            parameter("date", data)
+        }.body()
+
     /** Anagrafica della linea e i suoi versi. */
     suspend fun linea(routeId: String): RispostaLinea =
         client.get("$base/api/routes/${routeId.encodeURLPathPart()}").body()
