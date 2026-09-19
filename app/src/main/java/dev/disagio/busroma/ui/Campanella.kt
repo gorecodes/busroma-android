@@ -27,7 +27,7 @@ import dev.disagio.busroma.ui.theme.LocalPalette
 fun Campanella(
     accesa: Boolean,
     inCorso: Boolean,
-    onClick: () -> Unit,
+    alTocco: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = LocalPalette.current
@@ -36,7 +36,7 @@ fun Campanella(
             .size(44.dp)
             .alpha(if (inCorso) 0.4f else 1f)
             .clip(RoundedCornerShape(50))
-            .clickable(enabled = !inCorso, onClick = onClick),
+            .clickable(enabled = !inCorso, onClick = alTocco),
         contentAlignment = Alignment.Center,
     ) {
         GlifoCampanella(

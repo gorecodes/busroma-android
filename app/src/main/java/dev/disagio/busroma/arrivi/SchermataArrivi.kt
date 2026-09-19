@@ -367,7 +367,7 @@ private fun RigaArrivo(
             Campanella(
                 accesa = campanellaAccesa,
                 inCorso = campanellaInCorso,
-                onClick = suToccoCampanella,
+                alTocco = suToccoCampanella,
             )
         }
     }
