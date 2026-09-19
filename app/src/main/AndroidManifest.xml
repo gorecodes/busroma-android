@@ -12,6 +12,13 @@
     <!-- Senza questa, BOOT_COMPLETED non arriva al ricevitore. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- L'app si distribuisce fuori dagli store (release di GitHub): senza
+         questo permesso PackageInstaller rifiuta di aprire una sessione e
+         canRequestPackageInstalls() restituisce sempre falso. L'ultima parola
+         resta all'utente nel dialogo di sistema — il permesso autorizza la
+         RICHIESTA, non l'installazione silenziosa. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- SVEGLIA ESATTA, e serve davvero: l'ultimo controllo prima dell'arrivo
          e' a un minuto di distanza, e l'unica sveglia inesatta che attraversa
          il Doze non viene consegnata piu' di una volta ogni nove minuti.
@@ -72,6 +79,12 @@
              non da app di terze parti. -->
         <receiver
             android:name=".sveglie.RicevitoreSveglia"
+            android:exported="false" />
+
+        <!-- Non esportato: viene svegliato solo dal PendingIntent che
+             passiamo a PackageInstaller.Session.commit(). -->
+        <receiver
+            android:name=".aggiornamenti.RicevitoreInstallazione"
             android:exported="false" />
 
         <!-- Non esportato: i broadcast di sistema (BOOT_COMPLETED,
