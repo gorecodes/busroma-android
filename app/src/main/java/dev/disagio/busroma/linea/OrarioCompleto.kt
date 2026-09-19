@@ -179,9 +179,16 @@ private fun Griglia(voci: List<VoceOrario>, giorno: GiornoOrario, c: Palette) {
     }
 
     val perOra = remember(voci) {
-        val m = LinkedHashMap<String, MutableList<Int>>()
+        // SI RAGGRUPPA SUI SECONDI, non sul testo "hh". L'orario scavalca la
+        // mezzanotte — verificato: l'ultima corsa della 60 ha
+        // departure_s 86400, cioe' le 00:00 del giorno dopo — e una linea con
+        // servizio oltre le ventiquattro ore avrebbe due fasce diverse nella
+        // stessa chiave "00", mescolate in una riga sola. Sui secondi le due
+        // fasce restano separate e nell'ordine giusto per costruzione, non per
+        // fortuna dell'ordine dei dati.
+        val m = LinkedHashMap<Int, MutableList<Int>>()
         voci.forEachIndexed { indice, voce ->
-            m.getOrPut(voce.hhmm.take(2)) { mutableListOf() }.add(indice)
+            m.getOrPut(voce.departureS / 3600) { mutableListOf() }.add(indice)
         }
         m
     }
@@ -190,7 +197,8 @@ private fun Griglia(voci: List<VoceOrario>, giorno: GiornoOrario, c: Palette) {
         perOra.forEach { (ora, indici) ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Text(
-                    text = ora,
+                    // % 24: l'ora 24 e' mezzanotte, la 25 e' l'una.
+                    text = (ora % 24).toString().padStart(2, '0'),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = c.neutral700,
