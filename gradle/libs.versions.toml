@@ -1,6 +1,7 @@
 [versions]
 # Versioni verificate contro i repository ufficiali il 18/09/2026, non a memoria.
 agp = "9.4.0"
+junit = "4.13.2"
 kotlin = "2.4.20"
 composeBom = "2026.09.00"
 coreKtx = "1.19.0"
@@ -40,6 +41,7 @@ ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.r
 ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

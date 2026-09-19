@@ -41,6 +41,19 @@ import java.time.ZoneId
 private val ROMA = ZoneId.of("Europe/Rome")
 private val COLONNA = 62.dp
 
+// Il DatePicker interpreta initialSelectedDateMillis come mezzanotte UTC:
+// passargli un istante qualunque fa sì che fra mezzanotte e le 2:00 (ora
+// legale) il giorno UTC sia ancora quello di ieri e il selettore si apra
+// sul giorno sbagliato. Si converte prima nella data locale di Roma, poi
+// in mezzanotte UTC di quella data.
+internal fun mezzanotteUtcDi(ms: Long): Long =
+    Instant.ofEpochMilli(ms)
+        .atZone(ROMA)
+        .toLocalDate()
+        .atStartOfDay(ZoneId.of("UTC"))
+        .toInstant()
+        .toEpochMilli()
+
 /**
  * Quando partire: adesso, oppure un istante scelto.
  *
@@ -110,7 +123,7 @@ fun QuandoParti(quando: Long?, imposta: (Long?) -> Unit, c: Palette) {
         // Si parte dall'istante già scelto, o da adesso: un selettore vuoto
         // costringerebbe a comporre tutto da zero ogni volta.
         val inizio = quando ?: System.currentTimeMillis()
-        val stato = rememberDatePickerState(initialSelectedDateMillis = inizio)
+        val stato = rememberDatePickerState(initialSelectedDateMillis = mezzanotteUtcDi(inizio))
         DatePickerDialog(
             onDismissRequest = { scegliData = false },
             confirmButton = {
