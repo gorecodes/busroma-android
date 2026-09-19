@@ -96,8 +96,9 @@ gh secret set FIRMA_KEY_PASSWORD
 gh secret set MAPTILER_KEY   # opzionale
 ```
 
-Per F-Droid la firma non serve: lo store ricompila dal sorgente e firma con la
-propria chiave. Vedi [FDROID.md](FDROID.md).
+Per uno store che ricompila dal sorgente e firma con la propria chiave la firma
+in CI non serve affatto: in quel caso l'APK non firmato della release è solo la
+prova che il rilascio compila.
 
 ## Licenze
 
