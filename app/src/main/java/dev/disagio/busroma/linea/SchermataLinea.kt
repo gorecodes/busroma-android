@@ -142,6 +142,10 @@ fun SchermataLinea(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(routeId, verso) {
         val v = verso ?: return@LaunchedEffect
+        // I MEZZI DEL VERSO PRECEDENTE NON RESTANO. Prima cambiando verso
+        // restavano i pallini verdi del verso vecchio fino alla prima risposta
+        // - fino a quindici secondi di mezzi attaccati alle fermate sbagliate.
+        mezzi = emptyList()
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 mezzi = try {
@@ -231,6 +235,7 @@ fun SchermataLinea(
                         PannelloFermata(
                             routeId = routeId,
                             fermata = f,
+                            verso = verso,
                             c = c,
                             apriFermata = apriFermata,
                             apriCorsa = apriCorsa,
@@ -562,6 +567,8 @@ private fun Nota(testo: String, c: Palette) {
 private fun PannelloFermata(
     routeId: String,
     fermata: FermataLinea,
+    /** Serve all'orario completo; null finche' l'anagrafica non e' arrivata. */
+    verso: Int?,
     c: Palette,
     apriFermata: (String) -> Unit,
     apriCorsa: (String) -> Unit,
@@ -570,6 +577,14 @@ private fun PannelloFermata(
         mutableStateOf<List<PassaggioLinea>?>(null)
     }
     var errore by remember(routeId, fermata.stopId) { mutableStateOf(false) }
+    /**
+     * L'orario completo si apre a richiesta, come sul web.
+     *
+     * Non si carica insieme ai prossimi passaggi: sono cento o trecento
+     * partenze, e chi apre una fermata nove volte su dieci vuole sapere quando
+     * passa adesso, non a che ora passava alle sei del mattino.
+     */
+    var tuttoOrario by remember(routeId, fermata.stopId) { mutableStateOf(false) }
 
     LaunchedEffect(routeId, fermata.stopId) {
         try {
@@ -603,6 +618,31 @@ private fun PannelloFermata(
                 p.isEmpty() -> Nota2("Nelle prossime 2 ore, niente.", c)
                 else -> p.take(3).forEach { a ->
                     RigaPassaggio(a, c) { a.tripId?.let(apriCorsa) }
+                }
+            }
+
+            // TUTTO L'ORARIO, a richiesta. Il verso serve al server per sapere
+            // in che direzione, e finche' l'anagrafica non e' arrivata non
+            // c'e': in quel caso l'interruttore non si mostra invece di
+            // mostrarsi e non funzionare.
+            if (verso != null) {
+                Text(
+                    text = if (tuttoOrario) "Solo i prossimi" else "Tutto l'orario del giorno",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = c.brand600,
+                    modifier = Modifier
+                        .heightIn(min = 40.dp)
+                        .clickable { tuttoOrario = !tuttoOrario }
+                        .padding(top = 8.dp),
+                )
+                if (tuttoOrario) {
+                    OrarioCompleto(
+                        routeId = routeId,
+                        stopId = fermata.stopId,
+                        verso = verso,
+                        c = c,
+                    )
                 }
             }
 
