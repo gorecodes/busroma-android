@@ -7,12 +7,10 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.disagio.busroma.BuildConfig
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
@@ -84,10 +82,14 @@ object Aggiornamenti {
     // Client separato da Api: quello ha User-Agent, base URL e timeout
     // calibrati per le API di Bus Roma. Questo è un controllo di cortesia
     // su un file di duecento byte: timeout brevi e nessun overhead.
+    /**
+     * `ignoreUnknownKeys` perché il manifesto potrà crescere: un campo nuovo
+     * aggiunto per una versione futura non deve rompere il controllo su un
+     * telefono che non si è ancora aggiornato.
+     */
+    private val json = Json { ignoreUnknownKeys = true }
+
     private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
         install(HttpTimeout) {
             requestTimeoutMillis = 5_000
             connectTimeoutMillis = 3_000
@@ -121,7 +123,16 @@ object Aggiornamenti {
         }
 
         return try {
-            val remota = client.get(URL_ULTIMA).body<VersioneRemota>()
+            // GITHUB SERVE GLI ALLEGATI COME application/octet-stream, non come
+            // application/json — verificato con curl sulla release. Con la
+            // negoziazione del contenuto la deserializzazione automatica
+            // solleverebbe NoTransformationFoundException, il controllo
+            // finirebbe in Esito.Errore a ogni giro, e avremmo un
+            // aggiornatore che non aggiorna mai senza dire perché. Quindi si
+            // legge il corpo come testo e si decodifica a mano.
+            val remota = json.decodeFromString<VersioneRemota>(
+                client.get(URL_ULTIMA).bodyAsText(),
+            )
             // Si segna l'istante solo dopo aver ricevuto risposta: un errore
             // di rete non deve far scattare il freno dei 15 minuti.
             context.archivio.edit { p ->
