@@ -71,6 +71,18 @@ android {
             "MAPTILER_KEY",
             "\"${project.findProperty("maptilerKey") ?: ""}\"",
         )
+        // Il repository da cui l'app legge le proprie release.
+        buildConfigField("String", "REPO_RILASCI", "\"gorecodes/busroma-android\"")
+        // L'AGGIORNATORE INTERNO SI PUO' SPEGNERE:
+        //   ./gradlew assembleRelease -PaggiornamentiInApp=false
+        // Serve alla variante per F-Droid, che non deve aggiornarsi da se'
+        // perche' l'aggiornamento lo fa lo store: un'app che scarica APK da
+        // sola, dentro F-Droid, non e' ammessa.
+        buildConfigField(
+            "Boolean",
+            "AGGIORNAMENTI_IN_APP",
+            "${project.findProperty("aggiornamentiInApp") ?: true}",
+        )
         }
         release {
             // R8 SPENTO, di proposito. Ktor e kotlinx.serialization si

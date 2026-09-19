@@ -142,6 +142,32 @@ jobs:
             echo "firmato=no" >> "$GITHUB_OUTPUT"
           fi
 
+      # IL MANIFESTO PER L'AGGIORNATORE INTERNO.
+      #
+      # Un allegato dal nome FISSO, così l'app può leggerlo sempre dallo stesso
+      # indirizzo — `releases/latest/download/ultima-versione.json` — senza
+      # passare per l'API di GitHub, che senza autenticazione ammette 60
+      # richieste all'ora per indirizzo IP: dietro il NAT di un operatore
+      # mobile quel limite lo esaurisce qualcun altro per te.
+      #
+      # Si costruisce con jq e non a mano: il changelog contiene virgolette,
+      # accenti e ritorni a capo, e un JSON cucito con echo si rompe al primo
+      # apostrofo.
+      - name: Manifesto della versione
+        if: steps.tag.outputs.nuovo == 'si'
+        run: |
+          changelog="fastlane/metadata/android/it-IT/changelogs/${{ steps.versione.outputs.codice }}.txt"
+          note=""
+          if [ -f "$changelog" ]; then note="$(cat "$changelog")"; fi
+          jq -n \
+            --argjson versionCode "${{ steps.versione.outputs.codice }}" \
+            --arg versionName "${{ steps.versione.outputs.nome }}" \
+            --arg apk "${{ steps.apk.outputs.file }}" \
+            --arg note "$note" \
+            '{versionCode: $versionCode, versionName: $versionName, apk: $apk, note: $note}' \
+            > ultima-versione.json
+          cat ultima-versione.json
+
       # Le note della release: se esiste il changelog di fastlane per questo
       # versionCode si usa quello — è il testo che legge anche F-Droid, e
       # scriverlo due volte vuol dire vederlo divergere.
@@ -166,4 +192,6 @@ jobs:
           name: ${{ steps.versione.outputs.tag }}
           body_path: ${{ steps.note.outputs.percorso }}
           generate_release_notes: ${{ steps.note.outputs.percorso == '' }}
-          files: ${{ steps.apk.outputs.file }}
+          files: |
+            ${{ steps.apk.outputs.file }}
+            ultima-versione.json
