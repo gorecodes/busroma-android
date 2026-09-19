@@ -18,6 +18,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,13 @@ fun BannerAggiornamento(
     var stato by remember { mutableStateOf<StatoInstallazione>(StatoInstallazione.Riposo) }
 
     val inScarico = stato is StatoInstallazione.Scarico
+    // Letto dal DataStore e non da `stato`: se l'app è stata messa in
+    // secondo piano (o uccisa) fra il tocco di "aggiorna" e il dialogo di
+    // sistema, questo composabile riparte da Riposo e non saprebbe niente
+    // di un rifiuto o di un fallimento arrivati nel frattempo.
+    val installazioneNonRiuscita by Aggiornamenti
+        .flussoInstallazioneNonRiuscita(contesto)
+        .collectAsState(initial = false)
 
     Column(
         modifier
@@ -125,6 +133,28 @@ fun BannerAggiornamento(
                 )
             }
         }
+        // Non in `inScarico`: un tentativo appena ricominciato deve mostrare
+        // la barra di avanzamento, non questa riga sull'esito precedente.
+        if (installazioneNonRiuscita && !inScarico) {
+            Spacer(Modifier.height(6.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .clickable {
+                        scope.launch {
+                            avviaAggiornamento(contesto, versione) { stato = it }
+                        }
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Installazione non completata — tocca per riprovare",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.brand600,
+                )
+            }
+        }
     }
 }
 
@@ -139,6 +169,10 @@ private suspend fun avviaAggiornamento(
         contesto.startActivity(Installatore.intentPermesso(contesto))
         return
     }
+    // Si ricomincia: un rifiuto o un fallimento precedente non deve restare
+    // a raccontare un tentativo che non è più quello in corso. Se anche
+    // questo fallisce, RicevitoreInstallazione ne scrive uno nuovo.
+    Aggiornamenti.installazioneRicominciata(contesto)
     aggiorna(StatoInstallazione.Scarico(0))
     val risultato = Installatore.scaricaEInstalla(contesto, versione) { p ->
         aggiorna(StatoInstallazione.Scarico(p))
