@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.disagio.busroma.BuildConfig
 import io.ktor.client.HttpClient
@@ -12,7 +13,9 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -59,6 +62,7 @@ private val Context.archivio by preferencesDataStore(name = "aggiornamenti")
 
 private val CHIAVE_ULTIMO_CONTROLLO = longPreferencesKey("ultimoControllo")
 private val CHIAVE_VERSIONE_IGNORATA = intPreferencesKey("versionCodeIgnorata")
+private val CHIAVE_DISPONIBILE = stringPreferencesKey("disponibile")
 
 /**
  * Il controllo degli aggiornamenti.
@@ -139,11 +143,20 @@ object Aggiornamenti {
                 p[CHIAVE_ULTIMO_CONTROLLO] = System.currentTimeMillis()
             }
             val codiceIgnorato = prefs?.get(CHIAVE_VERSIONE_IGNORATA)
-            if (daMostrare(remota, BuildConfig.VERSION_CODE, codiceIgnorato)) {
+            val esito = if (daMostrare(remota, BuildConfig.VERSION_CODE, codiceIgnorato)) {
                 Esito.Disponibile(remota)
             } else {
                 Esito.Nessuno
             }
+            // L'esito si SCRIVE, e chi disegna lo legge da [flussoDisponibile].
+            context.archivio.edit { p ->
+                if (esito is Esito.Disponibile) {
+                    p[CHIAVE_DISPONIBILE] = json.encodeToString(remota)
+                } else {
+                    p.remove(CHIAVE_DISPONIBILE)
+                }
+            }
+            esito
         } catch (e: CancellationException) {
             // La coroutine è stata annullata dall'esterno: non è un errore
             // di rete, si rilancia prima del catch generico. Stesso motivo
@@ -163,8 +176,32 @@ object Aggiornamenti {
     suspend fun ignora(context: Context, versionCode: Int) {
         context.archivio.edit { p ->
             p[CHIAVE_VERSIONE_IGNORATA] = versionCode
+            // Via anche dall'esito salvato, altrimenti il banner chiuso
+            // ricomparirebbe alla prossima composizione.
+            p.remove(CHIAVE_DISPONIBILE)
         }
     }
+
+    /**
+     * La versione trovata dall'ultimo controllo riuscito, o null.
+     *
+     * STA SU DISCO E NON IN MEMORIA DI UNA SCHERMATA, e la ragione l'ha
+     * insegnata una prova sul telefono: il controllo manuale nelle Informazioni
+     * diceva "disponibile" mentre il banner in home — l'unico posto da cui si
+     * scarica — restava zitto, perché erano due stati separati e il freno dei
+     * quindici minuti impediva al secondo di scoprirlo. Scritto qui, l'esito è
+     * uno solo per tutta l'app e non dipende da chi ha controllato per ultimo.
+     */
+    fun flussoDisponibile(context: Context): Flow<VersioneRemota?> =
+        context.archivio.data.map { p ->
+            p[CHIAVE_DISPONIBILE]?.let {
+                try {
+                    json.decodeFromString<VersioneRemota>(it)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
 
     suspend fun ignorata(context: Context, versionCode: Int): Boolean {
         val prefs = try {

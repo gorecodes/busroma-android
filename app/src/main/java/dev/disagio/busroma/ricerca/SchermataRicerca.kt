@@ -106,14 +106,19 @@ fun SchermataRicerca(
     // piu' di un elenco di cose cercate ieri.
     var toccato by remember { mutableStateOf(false) }
     val gestoreFuoco = LocalFocusManager.current
-    var versioneDisponibile by remember { mutableStateOf<VersioneRemota?>(null) }
+    // L'esito del controllo si LEGGE dal deposito invece di tenerlo qui: cosi'
+    // questo banner e il controllo manuale nelle Informazioni mostrano la stessa
+    // cosa, e il banner resta al suo posto anche dopo un riavvio dell'app,
+    // quando il freno dei quindici minuti vieta un controllo nuovo.
+    val versioneDisponibile by Aggiornamenti.flussoDisponibile(contesto)
+        .collectAsStateWithLifecycle(null)
     if (BuildConfig.AGGIORNAMENTI_IN_APP) {
         val lifecycle = LocalLifecycleOwner.current.lifecycle
         LaunchedEffect(Unit) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                val esito = Aggiornamenti.controlla(contesto)
-                // Gli errori si tacciono: un controllo fallito non vale un avviso.
-                if (esito is Esito.Disponibile) versioneDisponibile = esito.versione
+                // L'esito lo scrive `controlla`: qui non c'e' niente da
+                // raccogliere, e gli errori restano taciuti.
+                Aggiornamenti.controlla(contesto)
             }
         }
     }
@@ -137,7 +142,10 @@ fun SchermataRicerca(
             versioneDisponibile?.let { versione ->
                 BannerAggiornamento(
                     versione = versione,
-                    allaChiusura = { versioneDisponibile = null },
+                    // La chiusura la registra il banner stesso chiamando
+                    // Aggiornamenti.ignora, che svuota il deposito: il flusso
+                    // emette null e la striscia sparisce da se'.
+                    allaChiusura = {},
                 )
             }
         }

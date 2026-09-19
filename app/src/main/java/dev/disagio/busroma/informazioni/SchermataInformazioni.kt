@@ -31,8 +31,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import dev.disagio.busroma.BuildConfig
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.disagio.busroma.aggiornamenti.Aggiornamenti
 import dev.disagio.busroma.aggiornamenti.Esito
+import dev.disagio.busroma.ui.BannerAggiornamento
 import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
@@ -68,6 +70,10 @@ fun SchermataInformazioni(apriAvvisi: () -> Unit, modifier: Modifier = Modifier)
     val contesto = LocalContext.current
     val scope = rememberCoroutineScope()
     var esitoControllo by remember { mutableStateOf<String?>(null) }
+    // L'aggiornamento trovato da QUALUNQUE controllo, letto dal deposito:
+    // e' lo stesso che vede il banner in home.
+    val versioneDisponibile by Aggiornamenti.flussoDisponibile(contesto)
+        .collectAsStateWithLifecycle(null)
 
     fun apri(url: String) {
         contesto.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
@@ -231,8 +237,10 @@ fun SchermataInformazioni(apriAvvisi: () -> Unit, modifier: Modifier = Modifier)
                                     esitoControllo = null
                                     val esito = Aggiornamenti.controlla(contesto, forzato = true)
                                     esitoControllo = when (esito) {
-                                        is Esito.Disponibile ->
-                                            "Versione ${esito.versione.versionName} disponibile"
+                                        // Niente testo: sotto compare la
+                                        // striscia, che lo dice E offre il
+                                        // tasto per prenderlo.
+                                        is Esito.Disponibile -> null
                                         Esito.Nessuno -> "Sei aggiornato"
                                         Esito.Errore -> "Non riesco a controllare"
                                     }
@@ -242,6 +250,15 @@ fun SchermataInformazioni(apriAvvisi: () -> Unit, modifier: Modifier = Modifier)
                     )
                 }
                 esitoControllo?.let { Testo(it, c) }
+
+                // DIRE "DISPONIBILE" SENZA OFFRIRE L'AZIONE ERA UN VICOLO
+                // CIECO: da qui si scarica e si installa, con lo stesso
+                // componente del banner in home invece di una seconda
+                // implementazione da tenere allineata.
+                versioneDisponibile?.let { v ->
+                    Spacer(Modifier.height(8.dp))
+                    BannerAggiornamento(versione = v, allaChiusura = {})
+                }
             } else {
                 Testo("Versione ${BuildConfig.VERSION_NAME}", c)
             }
