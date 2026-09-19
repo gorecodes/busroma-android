@@ -1,0 +1,2 @@
+La mappa di una corsa ora disegna il percorso: prima mostrava solo i pallini
+delle fermate, e sembrava una mappa rimasta a metà del caricamento.
