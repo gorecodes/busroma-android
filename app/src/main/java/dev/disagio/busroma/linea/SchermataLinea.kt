@@ -95,6 +95,8 @@ fun SchermataLinea(
     apriFermata: (String) -> Unit,
     apriCorsa: (String) -> Unit,
     apriAvvisi: () -> Unit,
+    /** fermata, verso, nome della fermata, nome breve della linea. */
+    apriOrario: (String, Int, String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = LocalPalette.current
@@ -226,7 +228,7 @@ fun SchermataLinea(
         // capolinea. L'orario di una fermata intermedia e' un'altra cosa, e
         // metterlo al posto di questo l'ha resa irraggiungibile.
         if (fermate.isNotEmpty()) {
-            SezionePartenze(routeId, verso, fermate.first(), c)
+            SezionePartenze(routeId, verso, fermate.first(), linea?.shortName, c, apriOrario)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -569,14 +571,14 @@ private fun SezionePartenze(
     routeId: String,
     verso: Int?,
     prima: FermataLinea,
+    shortName: String?,
     c: Palette,
+    apriOrario: (String, Int, String, String) -> Unit,
 ) {
     var partenze by remember(routeId, prima.stopId) {
         mutableStateOf<List<PassaggioLinea>?>(null)
     }
     var errore by remember(routeId, prima.stopId) { mutableStateOf(false) }
-    var tuttoOrario by remember(routeId, prima.stopId) { mutableStateOf(false) }
-
     LaunchedEffect(routeId, prima.stopId) {
         try {
             partenze = Api.passaggiLineaAllaFermata(routeId, prima.stopId).arrivals
@@ -599,23 +601,24 @@ private fun SezionePartenze(
             )
             // L'interruttore compare solo col verso noto: il server ne ha
             // bisogno, e un tasto che non puo' funzionare non si mostra.
-            if (verso != null) {
+            // L'ORARIO E' UNA SCHERMATA SUA: qui c'e' solo la porta. Aperto
+            // dentro questa pagina spremeva mappa, orario ed elenco fermate in
+            // tre strisce, e niente restava leggibile.
+            if (verso != null && shortName != null) {
                 Text(
-                    text = if (tuttoOrario) "Solo le prossime" else "Tutto l'orario",
+                    text = "Tutto l'orario \u203a",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                     color = c.brand600,
                     modifier = Modifier
                         .heightIn(min = 44.dp)
-                        .clickable { tuttoOrario = !tuttoOrario }
+                        .clickable { apriOrario(prima.stopId, verso, prima.name, shortName) }
                         .padding(start = 10.dp, top = 14.dp, bottom = 14.dp),
                 )
             }
         }
 
-        if (tuttoOrario && verso != null) {
-            OrarioCompleto(routeId = routeId, stopId = prima.stopId, verso = verso, c = c)
-        } else {
+        run {
             val p = partenze
             when {
                 errore -> Nota2("Gli orari non si lasciano leggere.", c)

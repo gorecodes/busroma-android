@@ -19,6 +19,7 @@ import dev.disagio.busroma.arrivi.SchermataArrivi
 import dev.disagio.busroma.avvisi.SchermataAvvisi
 import dev.disagio.busroma.corsa.SchermataCorsa
 import dev.disagio.busroma.linea.SchermataLinea
+import dev.disagio.busroma.linea.SchermataOrario
 import dev.disagio.busroma.informazioni.SchermataInformazioni
 import dev.disagio.busroma.percorsi.SchermataPercorsi
 import dev.disagio.busroma.preferiti.SchermataPreferiti
@@ -64,6 +65,22 @@ object Avvisi
 
 @Serializable
 data class Corsa(val tripId: String)
+
+/**
+ * L'orario completo di una linea a una fermata.
+ *
+ * Porta con se' nome della fermata e nome breve della linea: servono al titolo,
+ * e chiederli al server per scrivere un'intestazione sarebbe una richiesta per
+ * niente quando chi naviga li ha gia' in mano.
+ */
+@Serializable
+data class OrarioRotta(
+    val routeId: String,
+    val stopId: String,
+    val verso: Int,
+    val nomeFermata: String,
+    val shortName: String,
+)
 
 /**
  * L'albero di navigazione, con la barra in basso.
@@ -175,6 +192,16 @@ fun AppBusRoma(
                     apriAvvisi = { nav.navigate(Avvisi) },
                 )
             }
+            composable<OrarioRotta> { v ->
+                val rotta: OrarioRotta = v.toRoute()
+                SchermataOrario(
+                    routeId = rotta.routeId,
+                    stopId = rotta.stopId,
+                    verso = rotta.verso,
+                    nomeFermata = rotta.nomeFermata,
+                    shortName = rotta.shortName,
+                )
+            }
             composable<LineaRotta> { v ->
                 val rotta: LineaRotta = v.toRoute()
                 SchermataLinea(
@@ -183,6 +210,11 @@ fun AppBusRoma(
                     apriFermata = { stopId -> nav.navigate(Arrivi(stopId)) },
                     apriCorsa = { tripId -> nav.navigate(Corsa(tripId)) },
                     apriAvvisi = { nav.navigate(Avvisi) },
+                    apriOrario = { stopId, verso, nomeFermata, shortName ->
+                        nav.navigate(
+                            OrarioRotta(rotta.routeId, stopId, verso, nomeFermata, shortName),
+                        )
+                    },
                 )
             }
         }

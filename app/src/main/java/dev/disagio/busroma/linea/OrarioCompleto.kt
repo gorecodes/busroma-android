@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -64,6 +65,7 @@ fun OrarioCompleto(
     stopId: String,
     verso: Int,
     c: Palette,
+    modifier: Modifier = Modifier,
 ) {
     var giorno by remember(routeId, stopId, verso) { mutableStateOf(GiornoOrario.OGGI) }
     // Cambia solo per far ripartire l'effetto quando si tocca "riprova":
@@ -110,7 +112,7 @@ fun OrarioCompleto(
                 style = MaterialTheme.typography.bodySmall,
                 color = c.neutral500,
             )
-            else -> Griglia(v, giorno, c)
+            else -> Griglia(v, giorno, c, modifier)
         }
     }
 }
@@ -169,7 +171,12 @@ private fun RigaErrore(testo: String, c: Palette, riprova: () -> Unit) {
  * subito la fascia che interessa.
  */
 @Composable
-private fun Griglia(voci: List<VoceOrario>, giorno: GiornoOrario, c: Palette) {
+private fun Griglia(
+    voci: List<VoceOrario>,
+    giorno: GiornoOrario,
+    c: Palette,
+    modifier: Modifier = Modifier,
+) {
     // L'ora si legge una volta sola qui, al disegno: un orario di carta non
     // si muove da solo, e "adesso" non ha senso per la scheda di domani.
     val prossimoIndice = remember(voci, giorno) {
@@ -222,7 +229,10 @@ private fun Griglia(voci: List<VoceOrario>, giorno: GiornoOrario, c: Palette) {
 
     LazyColumn(
         state = statoLista,
-        modifier = Modifier.heightIn(max = 260.dp),
+        // Nessun tetto d'altezza: questa lista vive in una schermata sua e
+        // prende lo spazio che c'e'. Il tetto serviva quando stava dentro la
+        // pagina della linea, dove spremeva l'elenco delle fermate.
+        modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         items(righe, key = { (ora, _) -> ora }) { (ora, indici) ->
