@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -78,7 +79,10 @@ data class Corsa(val tripId: String)
  * installata il browser non offre un gesto affidabile.
  */
 @Composable
-fun AppBusRoma() {
+fun AppBusRoma(
+    fermataDaAprire: String? = null,
+    onFermataAperta: () -> Unit = {},
+) {
     val nav = rememberNavController()
     val voce by nav.currentBackStackEntryAsState()
     val destinazione = voce?.destination
@@ -89,6 +93,22 @@ fun AppBusRoma() {
         destinazione?.hasRoute<Ritardi>() == true -> Sezione.Ritardi
         destinazione?.hasRoute<Ricerca>() == true -> Sezione.Fermate
         else -> null
+    }
+
+    // Navigazione da notifica: una volta sola per valore, non a ogni
+    // ricomposizione. La chiave cambia quando arriva un nuovo stop_id; il
+    // reset via onFermataAperta() fa sì che lo stesso stop_id in una seconda
+    // notifica successiva navighi di nuovo (il null intermedio cambia la chiave).
+    LaunchedEffect(fermataDaAprire) {
+        if (fermataDaAprire != null) {
+            val entry = nav.currentBackStackEntry
+            val giaLi = entry?.destination?.hasRoute<Arrivi>() == true &&
+                entry.toRoute<Arrivi>().stopId == fermataDaAprire
+            if (!giaLi) {
+                nav.navigate(Arrivi(fermataDaAprire))
+            }
+            onFermataAperta()
+        }
     }
 
     // Lo sfondo va messo sulla RADICE e non dentro le schermate: con il disegno
