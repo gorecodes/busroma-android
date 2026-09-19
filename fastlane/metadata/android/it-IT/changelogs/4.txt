@@ -1,0 +1,2 @@
+Versione di prova per collaudare l'aggiornamento automatico dentro l'app:
+nessun cambiamento funzionale rispetto alla 0.1.2.
