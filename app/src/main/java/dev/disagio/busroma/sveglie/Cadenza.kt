@@ -32,6 +32,21 @@ const val SOGLIA_NOTIFICA_MS = 5 * 60_000L + 30_000L
 /** Sotto questo residuo il bus è passato: non si notifica più. */
 const val PASSATO_MS = -60_000L
 
+/**
+ * Sotto questa attesa la campanella non si offre nemmeno.
+ *
+ * La notifica scatta a cinque minuti dall'arrivo: su un bus che arriva fra tre
+ * minuti accenderla vuol dire suonare immediatamente, a chi sta guardando lo
+ * schermo e quindi lo sa già. Sette e non sei perché a sei l'avviso arriverebbe
+ * mezzo minuto dopo il tocco: c'è una soglia oltre la quale l'avviso è una
+ * notizia, e sotto è un ronzio.
+ *
+ * È in MINUTI e non in millisecondi di proposito: il confronto si fa sul numero
+ * che la riga sta mostrando, così quel che si vede e quel che si può fare non
+ * possono divergere per un arrotondamento.
+ */
+const val SOGLIA_CAMPANELLA_MIN = 7
+
 /** Mai due controlli più vicini di così. */
 const val MINIMO_MS = 30_000L
 

@@ -60,6 +60,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import dev.disagio.busroma.sveglie.Avvisami
 import dev.disagio.busroma.sveglie.Notifiche
+import dev.disagio.busroma.sveglie.SOGLIA_CAMPANELLA_MIN
 import dev.disagio.busroma.sveglie.Vigilanze
 import dev.disagio.busroma.ui.Campanella
 
@@ -240,6 +241,23 @@ fun SchermataArrivi(
                         val chiave = chiavi[idx]
                         val vigilataQui = a.tripId != null &&
                             vigilanze.any { it.tripId == a.tripId && it.stopId == stopId }
+                        // LA CAMPANELLA NON COMPARE QUANDO IL TEMPO UTILE E'
+                        // PASSATO. La notifica scatta a cinque minuti
+                        // dall'arrivo: offrirla su un bus che arriva fra tre
+                        // significa suonare subito, a chi sta guardando lo
+                        // schermo e quindi lo sa gia'. Un pulsante che non puo'
+                        // fare niente di utile e' peggio di un pulsante
+                        // assente, perche' va provato per scoprirlo.
+                        //
+                        // Se invece la vigilanza e' GIA' accesa la campanella
+                        // resta, anche sotto la soglia: altrimenti scendendo
+                        // sotto i sette minuti sparirebbe l'unico modo di
+                        // spegnerla, e sembrerebbe che si sia spenta da se'.
+                        val minutiRiga = minutiDa(a.etaTs, stato.adesso)
+                        val campanellaUtile = a.tripId != null && (
+                            vigilataQui ||
+                                (minutiRiga != null && minutiRiga >= SOGLIA_CAMPANELLA_MIN)
+                            )
                         RigaArrivo(
                             a = a,
                             adesso = stato.adesso,
@@ -258,7 +276,7 @@ fun SchermataArrivi(
                             campanellaInCorso = a.tripId != null && campanellaInCorsoId == a.tripId,
                             // Solo sulle righe tracciate: un arrivo da tabella non ha
                             // una corsa da seguire, quindi la campanella non ha senso.
-                            suToccoCampanella = if (a.tripId != null) {
+                            suToccoCampanella = if (campanellaUtile) {
                                 {
                                     scope.launch {
                                         campanellaInCorsoId = a.tripId
