@@ -26,13 +26,19 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - uses: android-actions/setup-android@v3
-
+      # NIENTE android-actions/setup-android: quell'azione prova a installare
+      # il pacchetto obsoleto `tools`, che non esiste piu' nel repository di
+      # Google, e muore. L'SDK sul runner c'e' gia': serve solo aggiungere la
+      # piattaforma giusta.
+      #
       # La piattaforma va installata per nome ESATTO, minor compresa: il
       # progetto compila contro android-37.2, e con la 37.0 le librerie
       # AndroidX si rifiutano di essere compilate.
       - name: Piattaforma Android
-        run: sdkmanager --install "platforms;android-37.2" "build-tools;36.0.0"
+        run: |
+          sdkmanager=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)
+          yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$sdkmanager" --install "platforms;android-37.2" "build-tools;36.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
 
