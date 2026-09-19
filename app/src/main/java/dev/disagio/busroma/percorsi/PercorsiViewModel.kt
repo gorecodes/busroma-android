@@ -7,6 +7,7 @@ import dev.disagio.busroma.dati.Api
 import dev.disagio.busroma.dati.NessunItinerario
 import dev.disagio.busroma.dati.Piano
 import dev.disagio.busroma.posizione.Posizione
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -129,6 +130,10 @@ class PercorsiViewModel : ViewModel() {
                 )
             } catch (e: NessunItinerario) {
                 _stato.value = _stato.value.copy(calcolando = false, errore = ErrorePiano.Vuoto)
+            } catch (e: CancellationException) {
+                // Il lavoro precedente e' stato annullato da cerca(): non e'
+                // un guasto, e la nuova ricerca e' gia' partita.
+                throw e
             } catch (e: Exception) {
                 _stato.value = _stato.value.copy(calcolando = false, errore = ErrorePiano.Guasto)
             }

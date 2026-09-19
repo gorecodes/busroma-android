@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import dev.disagio.busroma.dati.Api
 import dev.disagio.busroma.dati.FermataTrovata
 import dev.disagio.busroma.dati.Linea
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,15 +68,23 @@ class RicercaViewModel : ViewModel() {
                 // LINEE E FERMATE IN PARALLELO, come sul web: sono due
                 // endpoint indipendenti, e farle in sequenza raddoppierebbe
                 // l'attesa per niente.
-                val attesaLinee = async { Api.cercaLinee(pulito).routes }
-                val attesaFermate = async { Api.cercaFermate(pulito).stops }
+                // coroutineScope garantisce che se una delle due fallisce,
+                // l'altra viene annullata prima che l'eccezione raggiunga il catch.
+                coroutineScope {
+                    val attesaLinee = async { Api.cercaLinee(pulito).routes }
+                    val attesaFermate = async { Api.cercaFermate(pulito).stops }
 
-                _stato.value = _stato.value.copy(
-                    linee = attesaLinee.await(),
-                    fermate = attesaFermate.await(),
-                    cercando = false,
-                    errore = false,
-                )
+                    _stato.value = _stato.value.copy(
+                        linee = attesaLinee.await(),
+                        fermate = attesaFermate.await(),
+                        cercando = false,
+                        errore = false,
+                    )
+                }
+            } catch (e: CancellationException) {
+                // Il lavoro precedente e' stato annullato da scrivi(): non e'
+                // un errore di rete, e la nuova ricerca e' gia' partita.
+                throw e
             } catch (e: Exception) {
                 // Qui i risultati vecchi SI BUTTANO, al contrario degli
                 // arrivi: mostrare i risultati di "termini" mentre l'utente ha
