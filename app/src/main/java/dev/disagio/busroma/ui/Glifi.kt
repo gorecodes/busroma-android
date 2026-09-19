@@ -237,6 +237,80 @@ fun Spillo(colore: Color, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * La campanella della vigilanza. Piena quando la vigilanza è attiva, contornata
+ * quando no: stessa logica di [Stella] — lo stato deve leggersi senza confronti.
+ *
+ * La forma è quella di `BellGlyph` del web (viewBox 20×20): cupola a cerchio
+ * con le alette laterali e il batacchio in basso. Ridisegnata a mano per la
+ * stessa ragione degli altri glifi: controllo del colore, della scala, e zero
+ * dipendenze da librerie di icone.
+ */
+@Composable
+fun GlifoCampanella(
+    piena: Boolean,
+    colore: Color,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier) {
+        val l = min(size.width, size.height)
+        fun p(v: Float) = v / 20f * l
+        val sp = p(1.5f)
+
+        // Corpo: cupola a mezza ellisse con le alette e il bordo piatto in basso.
+        // La cupola è un arco del cerchio centrato in (10, 8) di raggio 5.5;
+        // i punti (10, 2.5) e (15.5, 8) e (4.5, 8) stanno tutti su quel cerchio.
+        val corpo = Path().apply {
+            moveTo(p(10f), p(2.5f))
+            // Lato sinistro: da (10, 2.5) a (4.5, 8) in senso antiorario.
+            arcTo(
+                androidx.compose.ui.geometry.Rect(p(4.5f), p(2.5f), p(15.5f), p(13.5f)),
+                270f, -90f, false,
+            )
+            lineTo(p(4.5f), p(11f))
+            lineTo(p(3.3f), p(13f))
+            lineTo(p(16.7f), p(13f))
+            lineTo(p(15.5f), p(11f))
+            lineTo(p(15.5f), p(8f))
+            // Lato destro: da (15.5, 8) a (10, 2.5) in senso antiorario.
+            arcTo(
+                androidx.compose.ui.geometry.Rect(p(4.5f), p(2.5f), p(15.5f), p(13.5f)),
+                0f, -90f, false,
+            )
+            close()
+        }
+
+        if (piena) {
+            drawPath(corpo, colore)
+        } else {
+            drawPath(
+                corpo, colore,
+                style = Stroke(
+                    width = sp,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                ),
+            )
+        }
+
+        // Batacchio: semicerchio in basso, separato dal corpo — è il dettaglio
+        // che dice "campanella" e non "cappello" a questa forma.
+        val batacchio = Path().apply {
+            moveTo(p(8.2f), p(15.5f))
+            arcTo(
+                androidx.compose.ui.geometry.Rect(p(8.2f), p(13.7f), p(11.8f), p(17.3f)),
+                180f, -180f, false,
+            )
+        }
+        drawPath(
+            batacchio, colore,
+            style = Stroke(
+                width = sp,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            ),
+        )
+    }
+}
+
 /** Punta di freccia verso il basso: "qui si apre un elenco". */
 @Composable
 fun PuntaGiu(colore: Color, modifier: Modifier = Modifier) {

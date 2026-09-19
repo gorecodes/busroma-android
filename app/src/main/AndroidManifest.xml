@@ -5,6 +5,31 @@
          con un errore che non nomina il permesso. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Su Android 13+: senza questa dichiarazione il permesso a runtime
+         non appare nell'elenco di sistema e la richiesta viene ignorata. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Senza questa, BOOT_COMPLETED non arriva al ricevitore. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- SVEGLIA ESATTA, e serve davvero: l'ultimo controllo prima dell'arrivo
+         e' a un minuto di distanza, e l'unica sveglia inesatta che attraversa
+         il Doze non viene consegnata piu' di una volta ogni nove minuti.
+         Senza questi permessi setAlarmClock non degrada: solleva
+         SecurityException e l'app si chiude, che e' il difetto che questa
+         riga corregge.
+         USE_EXACT_ALARM (da Android 13) e' concesso all'installazione, senza
+         dialoghi ne' impostazioni da cercare. Il Play Store lo consente solo
+         alle app la cui funzione principale sono sveglie e promemoria: qui la
+         distribuzione e' F-Droid, dove quella politica non esiste, e se un
+         giorno si pubblicasse su Play questa riga va rivista.
+         SCHEDULE_EXACT_ALARM copre fino ad Android 12, dove USE_EXACT_ALARM
+         non esiste e quello e' pre-concesso all'installazione. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+
     <!-- Posizione PRECISA, e serve davvero.
          L'approssimata di Android non e' semplicemente meno accurata: e'
          agganciata a un'area di circa tre chilometri quadrati. Per una lista
@@ -28,16 +53,38 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.BusRoma">
+        <!-- singleTop: al tocco della notifica il sistema riusa l'istanza viva
+             invece di impilarne una seconda, come fa il web col focus sulla
+             scheda già aperta. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="Bus Roma"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.BusRoma.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Non esportato: viene svegliato solo dal nostro PendingIntent,
+             non da app di terze parti. -->
+        <receiver
+            android:name=".sveglie.RicevitoreSveglia"
+            android:exported="false" />
+
+        <!-- Non esportato: i broadcast di sistema (BOOT_COMPLETED,
+             MY_PACKAGE_REPLACED) arrivano comunque perché sono protetti
+             e mandati direttamente dal sistema operativo. -->
+        <receiver
+            android:name=".sveglie.RicevitoreAvvio"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
