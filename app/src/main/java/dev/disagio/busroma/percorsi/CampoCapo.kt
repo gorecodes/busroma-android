@@ -104,6 +104,19 @@ fun CampoCapo(
         }
     }
 
+    // "Usa la mia posizione" sceglie il capo FUORI da questo composabile: è il
+    // chiamante che, dopo il GPS, passa un valore nuovo tramite `valore`,
+    // senza passare per nessuno dei clickable qui sotto. Senza questo effetto
+    // testo e risultati restavano quelli della ricerca precedente, non visti
+    // finché il capo non veniva tolto: la crocetta faceva ricomparire
+    // l'elenco vecchio perché in quel caso `testo` non era mai cambiato.
+    LaunchedEffect(valore) {
+        if (valore != null) {
+            testo = ""
+            risultati = emptyList()
+        }
+    }
+
     if (valore != null) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 48.dp),
@@ -130,7 +143,12 @@ fun CampoCapo(
                     .clip(RoundedCornerShape(50))
                     .clickable {
                         cambia(null)
+                        // Azzerati qui e non solo nell'effetto sopra: quel
+                        // campo torna in scena in questo stesso fotogramma,
+                        // deve ricomparire pulito e non con le briciole di
+                        // dieci minuti prima.
                         testo = ""
+                        risultati = emptyList()
                     },
                 contentAlignment = Alignment.Center,
             ) {
