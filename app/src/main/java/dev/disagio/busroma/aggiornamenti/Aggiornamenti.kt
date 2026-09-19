@@ -63,6 +63,17 @@ private val Context.archivio by preferencesDataStore(name = "aggiornamenti")
 private val CHIAVE_ULTIMO_CONTROLLO = longPreferencesKey("ultimoControllo")
 private val CHIAVE_VERSIONE_IGNORATA = intPreferencesKey("versionCodeIgnorata")
 private val CHIAVE_DISPONIBILE = stringPreferencesKey("disponibile")
+private val CHIAVE_ESITO_INSTALLAZIONE_ISTANTE = longPreferencesKey("esitoInstallazioneIstante")
+
+/**
+ * Quanto resta valido un esito di installazione non riuscita.
+ *
+ * Stesso ragionamento del filtro in [flussoDisponibile]: questo deposito
+ * sopravvive a un'installazione riuscita, quindi un "installazione non
+ * completata" letto un'ora dopo — magari dopo che l'utente ha già
+ * aggiornato a mano — sarebbe una bugia peggiore del silenzio.
+ */
+private const val VALIDITA_ESITO_INSTALLAZIONE_MS = 5 * 60_000L
 
 /**
  * Il controllo degli aggiornamenti.
@@ -208,6 +219,42 @@ object Aggiornamenti {
             // gia' usando, fino al controllo successivo — cioe' fino a un
             // quarto d'ora di bugia. Difetto visto in uso.
             salvata?.takeIf { it.versionCode > BuildConfig.VERSION_CODE }
+        }
+
+    /**
+     * Registra che un'installazione non è arrivata in fondo: l'utente ha
+     * rifiutato il dialogo di conferma del sistema, oppure è fallita per
+     * un'altra ragione. Lo scrive [RicevitoreInstallazione], che è un
+     * BroadcastReceiver e non ha modo di parlare a un composabile in
+     * memoria — il DataStore è il tramite.
+     */
+    suspend fun segnaInstallazioneNonRiuscita(context: Context) {
+        context.archivio.edit { p ->
+            p[CHIAVE_ESITO_INSTALLAZIONE_ISTANTE] = System.currentTimeMillis()
+        }
+    }
+
+    /**
+     * "Ricomincio": l'utente ha toccato di nuovo Aggiorna. Un esito vecchio
+     * non deve restare a raccontare un tentativo che non è più quello in
+     * corso — se anche questo fallisce, ne scrive uno nuovo con l'istante
+     * aggiornato.
+     */
+    suspend fun installazioneRicominciata(context: Context) {
+        context.archivio.edit { p ->
+            p.remove(CHIAVE_ESITO_INSTALLAZIONE_ISTANTE)
+        }
+    }
+
+    /**
+     * Vero se un'installazione è fallita di recente: il banner lo usa per
+     * offrire "riprova" invece di restare impiccato sull'ultimo stato
+     * mostrato prima che l'app venisse messa in secondo piano o uccisa.
+     */
+    fun flussoInstallazioneNonRiuscita(context: Context): Flow<Boolean> =
+        context.archivio.data.map { p ->
+            val istante = p[CHIAVE_ESITO_INSTALLAZIONE_ISTANTE] ?: return@map false
+            System.currentTimeMillis() - istante < VALIDITA_ESITO_INSTALLAZIONE_MS
         }
 
     suspend fun ignorata(context: Context, versionCode: Int): Boolean {

@@ -5,6 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Riceve il risultato della sessione di PackageInstaller.
@@ -33,9 +36,33 @@ class RicevitoreInstallazione : BroadcastReceiver() {
                     context.startActivity(conferma)
                 }
             }
-            // Gli altri esiti (SUCCESS, FAILURE, ecc.) non richiedono azione
-            // da parte nostra: il dialogo dell'installatore sistema comunica
-            // già l'esito all'utente.
+            PackageInstaller.STATUS_SUCCESS -> {
+                // Niente da fare: il processo viene sostituito da quello
+                // della nuova versione, e il banner sparisce da sé grazie al
+                // filtro sul versionCode in Aggiornamenti.flussoDisponibile.
+            }
+            else -> {
+                // Tutti gli altri esiti (l'utente ha rifiutato il dialogo di
+                // conferma, o l'installazione è fallita) prima di questo
+                // commit sparivano nel nulla: il banner restava impiccato
+                // sull'ultimo stato mostrato, come se il tasto non avesse
+                // fatto niente. Un BroadcastReceiver non ha un composabile a
+                // cui parlare, quindi si scrive sul DataStore che il banner
+                // legge come flusso.
+                //
+                // goAsync() perché onReceive deve tornare subito ma la
+                // scrittura su DataStore è sospesa: senza, il sistema
+                // potrebbe considerare il ricevitore terminato e uccidere il
+                // processo a metà scrittura.
+                val risultato = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        Aggiornamenti.segnaInstallazioneNonRiuscita(context.applicationContext)
+                    } finally {
+                        risultato.finish()
+                    }
+                }
+            }
         }
     }
 }

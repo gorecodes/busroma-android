@@ -476,6 +476,28 @@ data class RispostaPassaggiLinea(
     val arrivals: List<PassaggioLinea> = emptyList(),
 )
 
+/**
+ * Una partenza dell'orario completo di UNA linea a UNA fermata, per UN
+ * giorno intero — non i prossimi passaggi ma tutte le corse programmate.
+ *
+ * `departureS` sono i secondi dalla mezzanotte del giorno di servizio e
+ * possono superare 86400: e' cosi' che il GTFS rappresenta una corsa dopo
+ * mezzanotte restando nel giorno di servizio di ieri. `hhmm` e' gia'
+ * formattato dal server tenendone conto ("00:18", "01:49"), e va usato per
+ * mostrare l'orario; `departureS` serve solo per confrontare "adesso" e
+ * capire qual e' la prossima partenza.
+ */
+@Serializable
+data class VoceOrario(
+    @SerialName("departure_s") val departureS: Int,
+    val hhmm: String,
+)
+
+@Serializable
+data class RispostaOrarioCompleto(
+    val timetable: List<VoceOrario> = emptyList(),
+)
+
 // ---------------------------------------------------------------------------
 // RITARDI
 //
