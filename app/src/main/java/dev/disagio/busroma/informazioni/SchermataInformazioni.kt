@@ -18,6 +18,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,9 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import dev.disagio.busroma.BuildConfig
+import dev.disagio.busroma.aggiornamenti.Aggiornamenti
+import dev.disagio.busroma.aggiornamenti.Esito
 import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
+import kotlinx.coroutines.launch
 
 /**
  * Informativa privacy e attribuzioni.
@@ -58,6 +66,8 @@ import dev.disagio.busroma.ui.theme.Palette
 fun SchermataInformazioni(apriAvvisi: () -> Unit, modifier: Modifier = Modifier) {
     val c = LocalPalette.current
     val contesto = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var esitoControllo by remember { mutableStateOf<String?>(null) }
 
     fun apri(url: String) {
         contesto.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
@@ -204,7 +214,37 @@ fun SchermataInformazioni(apriAvvisi: () -> Unit, modifier: Modifier = Modifier)
                 c,
             )
 
-            Testo("Versione ${BuildConfig.VERSION_NAME}", c)
+            if (BuildConfig.AGGIORNAMENTI_IN_APP) {
+                // L'utente ha premuto un tasto: merita una risposta, anche negativa.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Testo("Versione ${BuildConfig.VERSION_NAME}", c)
+                    Text(
+                        text = "controlla adesso",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = c.brand600,
+                        modifier = Modifier
+                            .heightIn(min = 44.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable {
+                                scope.launch {
+                                    esitoControllo = null
+                                    val esito = Aggiornamenti.controlla(contesto, forzato = true)
+                                    esitoControllo = when (esito) {
+                                        is Esito.Disponibile ->
+                                            "Versione ${esito.versione.versionName} disponibile"
+                                        Esito.Nessuno -> "Sei aggiornato"
+                                        Esito.Errore -> "Non riesco a controllare"
+                                    }
+                                }
+                            }
+                            .padding(start = 12.dp, end = 4.dp, top = 13.dp, bottom = 13.dp),
+                    )
+                }
+                esitoControllo?.let { Testo(it, c) }
+            } else {
+                Testo("Versione ${BuildConfig.VERSION_NAME}", c)
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -80,32 +80,78 @@ l'abbia può pubblicare aggiornamenti che i telefoni accettano come nostri.
 
 Il rilascio è automatico e la versione è la sola cosa da decidere a mano:
 
-1. si alzano `versionCode` e `versionName` in `app/build.gradle.kts`;
+1. si alzano `versionCode` **e** `versionName` in `app/build.gradle.kts`;
 2. si spinge su `master`.
 
 Il workflow [Rilascio](.github/workflows/rilascio.yml) vede che per quel
 `versionName` non esiste ancora un tag, compila l'APK di rilascio, crea il tag
-`v<versionName>` e pubblica la release con l'APK allegato. Le spinte che non
-cambiano la versione non producono rilasci, quindi non serve ricordarsi di
-niente. Ogni spinta e ogni richiesta di modifica passano comunque per
-[Verifica](.github/workflows/verifica.yml), che esegue i test e la build di
-debug.
+`v<versionName>` e pubblica la release con **due** allegati: l'APK firmato e un
+`ultima-versione.json`. Le spinte che non cambiano la versione non producono
+rilasci, quindi non serve ricordarsi di niente. Ogni spinta e ogni richiesta di
+modifica passano comunque per [Verifica](.github/workflows/verifica.yml), che
+esegue i test e la build di debug.
 
-L'APK della release esce **non firmato** finché non si configurano i quattro
-secret della chiave — così com'è, il repository non contiene e non richiede
-nessun segreto:
+### Le regole che impone l'aggiornatore interno
+
+L'app installata controlla da sé se è uscita una versione nuova (il pacchetto
+`aggiornamenti`) leggendo `releases/latest/download/ultima-versione.json`.
+Violare una delle regole qui sotto **non rompe la build**: rompe
+l'aggiornamento sui telefoni che hanno già l'app, che è un guasto silenzioso e
+lo si scopre tardi.
+
+- **`versionCode` si alza sempre, e solo in avanti.** È il numero su cui l'app
+  decide se c'è qualcosa di nuovo: il nome della versione non lo guarda
+  nessuno, perché "0.10.0" viene prima di "0.9.0" in qualunque ordinamento di
+  stringhe.
+- **Si alzano tutti e due.** Se alzi solo `versionCode`, il tag `v<versionName>`
+  esiste già e il workflow non pubblica niente. Se alzi solo `versionName`, la
+  release esce ma per i telefoni non è un aggiornamento, perché il
+  `versionCode` è lo stesso di quello che hanno. Nessuno dei due casi dà un
+  errore: danno silenzio.
+- **La chiave di firma non cambia, mai.** Android rifiuta di installare un APK
+  firmato con una chiave diversa da quella dell'app già installata. Cambiarla
+  significa chiedere a ogni utente di disinstallare e reinstallare, perdendo
+  preferiti, storico e vigilanze.
+- **Gli allegati non si toccano a mano.** `ultima-versione.json` deve
+  conservare quel nome esatto: l'indirizzo che l'app interroga è
+  `releases/latest/download/ultima-versione.json`, e funziona proprio perché il
+  nome è fisso mentre la versione cambia.
+
+Una cosa invece la si può usare a proprio favore: `releases/latest` **esclude
+le pre-release**. Marcando una release come pre-release l'APK resta scaricabile
+da chi ha il link, ma i telefoni non la vedono come aggiornamento — è il modo
+per provare una build su un telefono senza spedirla a tutti.
+
+Il changelog è opzionale e sta in un posto solo: se esiste
+`fastlane/metadata/android/it-IT/changelogs/<versionCode>.txt`, il workflow lo
+usa come note della release **e** lo mette nel manifesto, quindi è anche il
+testo che l'utente legge nel banner dell'aggiornamento.
+
+Per una variante da dare a uno store che aggiorna da sé (F-Droid), l'aggiornatore
+si spegne in build e non interroga nemmeno la rete:
 
 ```sh
-base64 -w0 ~/.busroma/busroma.jks | gh secret set FIRMA_KEYSTORE_BASE64
-gh secret set FIRMA_STORE_PASSWORD
-gh secret set FIRMA_KEY_ALIAS
-gh secret set FIRMA_KEY_PASSWORD
-gh secret set MAPTILER_KEY   # opzionale
+./gradlew assembleRelease -PaggiornamentiInApp=false
 ```
 
-Per uno store che ricompila dal sorgente e firma con la propria chiave la firma
-in CI non serve affatto: in quel caso l'APK non firmato della release è solo la
-prova che il rilascio compila.
+### La firma in CI
+
+È attiva. La chiave sta nell'ambiente GitHub `rilascio`, che è vincolato al
+branch `master`: un workflow su un altro branch non riesce a leggerla. I quattro
+secret sono `FIRMA_KEYSTORE_BASE64`, `FIRMA_STORE_PASSWORD`, `FIRMA_KEY_ALIAS`,
+`FIRMA_KEY_PASSWORD`, e si rigenerano così:
+
+```sh
+base64 -w0 ~/.busroma/busroma.jks | gh secret set FIRMA_KEYSTORE_BASE64 --env rilascio
+gh secret set FIRMA_STORE_PASSWORD --env rilascio
+gh secret set FIRMA_KEY_ALIAS --env rilascio
+gh secret set FIRMA_KEY_PASSWORD --env rilascio
+gh secret set MAPTILER_KEY --env rilascio   # opzionale
+```
+
+Se i secret mancassero, l'APK esce **non firmato** invece di far fallire la
+build: per uno store che ricompila dal sorgente e firma con la propria chiave
+va bene così, ma su un telefono un APK non firmato non si installa.
 
 ## Licenze
 

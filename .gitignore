@@ -9,3 +9,6 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+# Impostazioni locali degli agenti: non riguardano il progetto.
+.claude/
