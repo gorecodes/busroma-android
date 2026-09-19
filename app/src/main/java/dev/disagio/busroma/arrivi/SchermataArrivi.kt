@@ -186,28 +186,42 @@ fun SchermataArrivi(
                 c,
                 null,
             )
-            else -> LazyColumn {
-                // L'indice di posizione disambigua mezzi accodati o corse da
-                // tabella con lo stesso etaTs: senza di lui Compose solleva
-                // IllegalArgumentException su chiavi duplicate.
-                itemsIndexed(stato.arrivi, key = { idx, it -> "$idx-${it.routeId}-${it.directionId}-${it.etaTs}" }) { idx, a ->
-                    val chiave = "$idx-${a.routeId}-${a.directionId}-${a.etaTs}"
-                    RigaArrivo(
-                        a = a,
-                        adesso = stato.adesso,
-                        c = c,
-                        suoiAvvisi = stato.avvisiPerLinea[a.shortName],
-                        aperto = apertoId == chiave,
-                        alternaAvviso = { apertoId = if (apertoId == chiave) null else chiave },
-                        // LA RIGA PORTA SEMPRE DA QUALCHE PARTE, come sul web:
-                        // alla corsa se il mezzo e' tracciato, altrimenti alla
-                        // linea nel verso di questo arrivo.
-                        apri = {
-                            if (a.tripId != null) apriCorsa(a.tripId)
-                            else apriLinea(a.routeId, a.directionId)
-                        },
-                    )
-                    HorizontalDivider(color = c.neutral200)
+            else -> {
+                // Chiavi calcolate una volta per lista: base semantica (trip_id
+                // quando c'e', eta_ts per gli orari da tabella), con un suffisso
+                // "#n" aggiunto SOLO ai duplicati. Cosi' la chiave e' univoca
+                // senza dipendere dalla posizione: quando un mezzo parte e la
+                // lista scorre, le righe rimaste conservano la stessa chiave e
+                // il pannello degli avvisi rimane aperto.
+                val chiavi = remember(stato.arrivi) {
+                    val visti = mutableMapOf<String, Int>()
+                    stato.arrivi.map { a ->
+                        val base = "${a.routeId}-${a.directionId}-${a.tripId ?: a.etaTs}"
+                        val n = (visti[base] ?: 0) + 1
+                        visti[base] = n
+                        if (n == 1) base else "$base#$n"
+                    }
+                }
+                LazyColumn {
+                    itemsIndexed(stato.arrivi, key = { idx, _ -> chiavi[idx] }) { idx, a ->
+                        val chiave = chiavi[idx]
+                        RigaArrivo(
+                            a = a,
+                            adesso = stato.adesso,
+                            c = c,
+                            suoiAvvisi = stato.avvisiPerLinea[a.shortName],
+                            aperto = apertoId == chiave,
+                            alternaAvviso = { apertoId = if (apertoId == chiave) null else chiave },
+                            // LA RIGA PORTA SEMPRE DA QUALCHE PARTE, come sul web:
+                            // alla corsa se il mezzo e' tracciato, altrimenti alla
+                            // linea nel verso di questo arrivo.
+                            apri = {
+                                if (a.tripId != null) apriCorsa(a.tripId)
+                                else apriLinea(a.routeId, a.directionId)
+                            },
+                        )
+                        HorizontalDivider(color = c.neutral200)
+                    }
                 }
             }
         }
