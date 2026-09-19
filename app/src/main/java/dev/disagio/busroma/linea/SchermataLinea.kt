@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.draw.rotate
 import dev.disagio.busroma.dati.PassaggioLinea
 import androidx.compose.foundation.layout.heightIn
@@ -59,7 +60,11 @@ import dev.disagio.busroma.ui.PuntaGiu
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.cos
 import kotlin.math.sqrt
 
@@ -214,6 +219,17 @@ fun SchermataLinea(
             Spacer(Modifier.height(12.dp))
         }
 
+        // LE PARTENZE DALLA PRIMA FERMATA, come sul web.
+        //
+        // Sta QUI, a livello di linea, e non nel pannello di una fermata: la
+        // domanda e' "quando parte la 71", e la risposta sono le partenze dal
+        // capolinea. L'orario di una fermata intermedia e' un'altra cosa, e
+        // metterlo al posto di questo l'ha resa irraggiungibile.
+        if (fermate.isNotEmpty()) {
+            SezionePartenze(routeId, verso, fermate.first(), c)
+            Spacer(Modifier.height(4.dp))
+        }
+
         when {
             errore -> Nota("La linea non si lascia caricare.", c)
             fermate.isEmpty() -> Nota("Carico il percorso...", c)
@@ -235,7 +251,6 @@ fun SchermataLinea(
                         PannelloFermata(
                             routeId = routeId,
                             fermata = f,
-                            verso = verso,
                             c = c,
                             apriFermata = apriFermata,
                             apriCorsa = apriCorsa,
@@ -541,6 +556,106 @@ private fun colore(hex: String): Color? {
     }
 }
 
+/**
+ * Le partenze dal capolinea, con l'interruttore per tutto l'orario.
+ *
+ * E' la controparte della sezione "Partenze da ..." del web, e sta allo stesso
+ * posto: subito sotto la mappa, prima dell'elenco delle fermate. Le prossime
+ * otto come pastiglie di orario, verdi se il mezzo e' tracciato e grigie se
+ * sono orario previsto — la stessa distinzione di tutta l'app.
+ */
+@Composable
+private fun SezionePartenze(
+    routeId: String,
+    verso: Int?,
+    prima: FermataLinea,
+    c: Palette,
+) {
+    var partenze by remember(routeId, prima.stopId) {
+        mutableStateOf<List<PassaggioLinea>?>(null)
+    }
+    var errore by remember(routeId, prima.stopId) { mutableStateOf(false) }
+    var tuttoOrario by remember(routeId, prima.stopId) { mutableStateOf(false) }
+
+    LaunchedEffect(routeId, prima.stopId) {
+        try {
+            partenze = Api.passaggiLineaAllaFermata(routeId, prima.stopId).arrivals
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            errore = true
+        }
+    }
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Partenze da ${prima.name}",
+                style = stileNome,
+                fontWeight = FontWeight.SemiBold,
+                color = c.neutral900,
+                maxLines = 2,
+                modifier = Modifier.weight(1f),
+            )
+            // L'interruttore compare solo col verso noto: il server ne ha
+            // bisogno, e un tasto che non puo' funzionare non si mostra.
+            if (verso != null) {
+                Text(
+                    text = if (tuttoOrario) "Solo le prossime" else "Tutto l'orario",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = c.brand600,
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clickable { tuttoOrario = !tuttoOrario }
+                        .padding(start = 10.dp, top = 14.dp, bottom = 14.dp),
+                )
+            }
+        }
+
+        if (tuttoOrario && verso != null) {
+            OrarioCompleto(routeId = routeId, stopId = prima.stopId, verso = verso, c = c)
+        } else {
+            val p = partenze
+            when {
+                errore -> Nota2("Gli orari non si lasciano leggere.", c)
+                p == null -> Nota2("Leggo gli orari...", c)
+                p.isEmpty() -> Nota2("Nelle prossime 2 ore, niente.", c)
+                else -> FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    p.take(8).forEach { d ->
+                        Text(
+                            text = oraDi(d.etaTs),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (d.isRealtime) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (d.isRealtime) c.live600 else c.neutral600,
+                            modifier = Modifier
+                                .border(
+                                    1.dp,
+                                    if (d.isRealtime) c.live600 else c.neutral300,
+                                    RoundedCornerShape(3.dp),
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** L'orario di partenza come lo legge un romano: "21:34", nel fuso di Roma. */
+private fun oraDi(etaIso: String): String = try {
+    ORA_MINUTI_LINEA.format(Instant.parse(etaIso))
+} catch (e: Exception) {
+    "--:--"
+}
+
+private val ORA_MINUTI_LINEA: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.of("Europe/Rome"))
+
 @Composable
 private fun Nota(testo: String, c: Palette) {
     Text(
@@ -567,8 +682,6 @@ private fun Nota(testo: String, c: Palette) {
 private fun PannelloFermata(
     routeId: String,
     fermata: FermataLinea,
-    /** Serve all'orario completo; null finche' l'anagrafica non e' arrivata. */
-    verso: Int?,
     c: Palette,
     apriFermata: (String) -> Unit,
     apriCorsa: (String) -> Unit,
@@ -577,15 +690,6 @@ private fun PannelloFermata(
         mutableStateOf<List<PassaggioLinea>?>(null)
     }
     var errore by remember(routeId, fermata.stopId) { mutableStateOf(false) }
-    /**
-     * L'orario completo si apre a richiesta, come sul web.
-     *
-     * Non si carica insieme ai prossimi passaggi: sono cento o trecento
-     * partenze, e chi apre una fermata nove volte su dieci vuole sapere quando
-     * passa adesso, non a che ora passava alle sei del mattino.
-     */
-    var tuttoOrario by remember(routeId, fermata.stopId) { mutableStateOf(false) }
-
     LaunchedEffect(routeId, fermata.stopId) {
         try {
             passaggi = Api.passaggiLineaAllaFermata(routeId, fermata.stopId).arrivals
@@ -618,31 +722,6 @@ private fun PannelloFermata(
                 p.isEmpty() -> Nota2("Nelle prossime 2 ore, niente.", c)
                 else -> p.take(3).forEach { a ->
                     RigaPassaggio(a, c) { a.tripId?.let(apriCorsa) }
-                }
-            }
-
-            // TUTTO L'ORARIO, a richiesta. Il verso serve al server per sapere
-            // in che direzione, e finche' l'anagrafica non e' arrivata non
-            // c'e': in quel caso l'interruttore non si mostra invece di
-            // mostrarsi e non funzionare.
-            if (verso != null) {
-                Text(
-                    text = if (tuttoOrario) "Solo i prossimi" else "Tutto l'orario del giorno",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = c.brand600,
-                    modifier = Modifier
-                        .heightIn(min = 40.dp)
-                        .clickable { tuttoOrario = !tuttoOrario }
-                        .padding(top = 8.dp),
-                )
-                if (tuttoOrario) {
-                    OrarioCompleto(
-                        routeId = routeId,
-                        stopId = fermata.stopId,
-                        verso = verso,
-                        c = c,
-                    )
                 }
             }
 
