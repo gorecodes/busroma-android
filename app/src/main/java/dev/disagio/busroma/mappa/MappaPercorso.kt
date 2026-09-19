@@ -120,11 +120,7 @@ fun MappaPercorso(
     // esplode al primo disegno con un errore che non nomina questa riga.
     val mapView = remember {
         MapLibre.getInstance(contesto)
-        MapView(contesto).apply {
-            onCreate(null)
-            onStart()
-            onResume()
-        }
+        MapView(contesto)
     }
     var mappa by remember { mutableStateOf<MapLibreMap?>(null) }
     var stile by remember { mutableStateOf<Style?>(null) }
@@ -145,10 +141,19 @@ fun MappaPercorso(
     // Il ciclo di vita della MapView non si può ignorare: senza onPause/onStop
     // la mappa continua a disegnare e a scaricare tessere in background, che è
     // lo stesso errore che le schermate evitano con repeatOnLifecycle.
+    //
+    // La vista non chiama nulla a mano: riceve tutto dall'osservatore, ON_CREATE
+    // compreso. Lifecycle, quando un osservatore si registra su un proprietario
+    // già avviato, gli RECUPERA gli eventi mancanti fino allo stato corrente
+    // (la stessa sincronizzazione su cui si basa repeatOnLifecycle) — quindi
+    // ON_CREATE/ON_START/ON_RESUME arrivano comunque, nell'ordine giusto, una
+    // volta sola. Chiamarli anche a mano nel `remember`, come prima, era la
+    // doppia consegna: l'osservatore li ripeteva subito dopo.
     val proprietario = LocalLifecycleOwner.current
     DisposableEffect(proprietario) {
         val osservatore = LifecycleEventObserver { _, evento ->
             when (evento) {
+                Lifecycle.Event.ON_CREATE -> mapView.onCreate(null)
                 Lifecycle.Event.ON_START -> mapView.onStart()
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
@@ -157,10 +162,16 @@ fun MappaPercorso(
             }
         }
         proprietario.lifecycle.addObserver(osservatore)
-        onDispose {
-            proprietario.lifecycle.removeObserver(osservatore)
-            mapView.onDestroy()
-        }
+        onDispose { proprietario.lifecycle.removeObserver(osservatore) }
+    }
+
+    // La distruzione è legata alla fine della composizione, non al
+    // proprietario: chiavarla su `proprietario`, come prima, avrebbe chiuso
+    // una MapView ancora in uso ogni volta che il ciclo di vita cambia
+    // proprietario mentre il composable resta in scena — da lì in poi il
+    // `remember` avrebbe continuato a restituire una vista morta.
+    DisposableEffect(Unit) {
+        onDispose { mapView.onDestroy() }
     }
 
     LaunchedEffect(mapView) {
