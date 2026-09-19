@@ -1,0 +1,2 @@
+Il banner dell'aggiornamento spariva solo dopo un quarto d'ora dall'avere
+aggiornato: adesso se ne va appena la versione nuova è quella installata.

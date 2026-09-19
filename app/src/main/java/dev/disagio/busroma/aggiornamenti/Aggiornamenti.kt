@@ -194,13 +194,20 @@ object Aggiornamenti {
      */
     fun flussoDisponibile(context: Context): Flow<VersioneRemota?> =
         context.archivio.data.map { p ->
-            p[CHIAVE_DISPONIBILE]?.let {
+            val salvata = p[CHIAVE_DISPONIBILE]?.let {
                 try {
                     json.decodeFromString<VersioneRemota>(it)
                 } catch (e: Exception) {
                     null
                 }
             }
+            // SI FILTRA ANCHE ALLA LETTURA, e non basta filtrare quando si
+            // scrive. Il deposito sopravvive all'aggiornamento dell'app: dopo
+            // aver installato la versione annunciata, quella riga resta su
+            // disco e il banner continuerebbe a offrire la versione che stai
+            // gia' usando, fino al controllo successivo — cioe' fino a un
+            // quarto d'ora di bugia. Difetto visto in uso.
+            salvata?.takeIf { it.versionCode > BuildConfig.VERSION_CODE }
         }
 
     suspend fun ignorata(context: Context, versionCode: Int): Boolean {
