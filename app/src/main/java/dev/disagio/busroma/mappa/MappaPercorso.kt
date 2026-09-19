@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -127,7 +128,14 @@ fun MappaPercorso(
     }
     var mappa by remember { mutableStateOf<MapLibreMap?>(null) }
     var stile by remember { mutableStateOf<Style?>(null) }
-    var inquadrata by remember { mutableStateOf(false) }
+    // Si azzera quando cambia il percorso (tracciato o fermate), così ogni verso
+    // ottiene la propria prima inquadratura senza strappare la mappa a chi trascina.
+    var inquadrata by remember(tracciato, fermate) { mutableStateOf(false) }
+
+    // Catture aggiornate per il listener del click: il LaunchedEffect(mapView)
+    // gira una sola volta, ma fermate e fermataToccata cambiano ad ogni verso.
+    val fermateAggiornate = rememberUpdatedState(fermate)
+    val fermataToccataAggiornata = rememberUpdatedState(fermataToccata)
 
     val colore = coloreLinea
         ?.takeIf { it.isNotBlank() }
@@ -234,9 +242,9 @@ fun MappaPercorso(
                 val f = trovate.firstOrNull()
                 if (f != null) {
                     val id = f.getStringProperty("id")
-                    val scelta = fermate.firstOrNull { it.stopId == id }
+                    val scelta = fermateAggiornate.value.firstOrNull { it.stopId == id }
                     if (scelta != null) {
-                        fermataToccata(scelta)
+                        fermataToccataAggiornata.value(scelta)
                         return@addOnMapClickListener true
                     }
                 }
@@ -293,6 +301,17 @@ fun MappaPercorso(
                 inquadrata = true
             }
         }
+    }
+
+    // Quando il colore della linea arriva dopo lo stile (l'anagrafica scaricata
+    // in una coroutine separata) o cambia, aggiorna i layer già costruiti senza
+    // ricostruire lo stile, che è un'operazione pesante.
+    LaunchedEffect(stile, colore) {
+        val s = stile ?: return@LaunchedEffect
+        (s.getLayer("tracciato-linea") as? LineLayer)
+            ?.setProperties(PropertyFactory.lineColor(colore))
+        (s.getLayer("fermate-pallini") as? CircleLayer)
+            ?.setProperties(PropertyFactory.circleStrokeColor(colore))
     }
 
     // I MEZZI SI MUOVONO invece di saltare. Si tiene l'ultima posizione
