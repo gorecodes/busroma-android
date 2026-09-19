@@ -54,6 +54,14 @@ import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
 import kotlinx.coroutines.launch
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import dev.disagio.busroma.sveglie.Avvisami
+import dev.disagio.busroma.sveglie.Notifiche
+import dev.disagio.busroma.sveglie.Vigilanze
+import dev.disagio.busroma.ui.Campanella
 
 /**
  * Gli arrivi a una fermata: la schermata per cui esiste l'app.
@@ -93,6 +101,31 @@ fun SchermataArrivi(
     val contesto = LocalContext.current
     val preferiti by Preferiti.flusso(contesto).collectAsStateWithLifecycle(emptyList())
     val salvata = preferiti.any { it.stopId == stopId }
+
+    // Le vigilanze: quali campanelle sono accese su questa fermata.
+    val vigilanze by Vigilanze.flusso(contesto).collectAsStateWithLifecycle(emptyList())
+
+    // L'arrivo in attesa di permesso: salvato qui per passarlo alla callback
+    // asincrona del launcher dopo che il dialogo di sistema risponde.
+    var arrivoInAttesaPermesso by remember(stopId) { mutableStateOf<Arrivo?>(null) }
+
+    // Quale campanella è in transizione (tocco ricevuto, salvataggio non ancora
+    // completato): una sola alla volta, identificata dal trip_id.
+    var campanellaInCorsoId by remember(stopId) { mutableStateOf<String?>(null) }
+
+    val richiestaPermesso = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concesso ->
+        if (concesso) {
+            val a = arrivoInAttesaPermesso ?: return@rememberLauncherForActivityResult
+            scope.launch {
+                campanellaInCorsoId = a.tripId
+                try { Avvisami.avvia(contesto, stopId, stato.fermata?.name, a) }
+                finally { campanellaInCorsoId = null }
+            }
+        }
+        arrivoInAttesaPermesso = null
+    }
 
     /**
      * Quale avviso è aperto: UNO SOLO alla volta, e la chiave è quella della
@@ -205,6 +238,8 @@ fun SchermataArrivi(
                 LazyColumn {
                     itemsIndexed(stato.arrivi, key = { idx, _ -> chiavi[idx] }) { idx, a ->
                         val chiave = chiavi[idx]
+                        val vigilataQui = a.tripId != null &&
+                            vigilanze.any { it.tripId == a.tripId && it.stopId == stopId }
                         RigaArrivo(
                             a = a,
                             adesso = stato.adesso,
@@ -219,6 +254,33 @@ fun SchermataArrivi(
                                 if (a.tripId != null) apriCorsa(a.tripId)
                                 else apriLinea(a.routeId, a.directionId)
                             },
+                            campanellaAccesa = vigilataQui,
+                            campanellaInCorso = a.tripId != null && campanellaInCorsoId == a.tripId,
+                            // Solo sulle righe tracciate: un arrivo da tabella non ha
+                            // una corsa da seguire, quindi la campanella non ha senso.
+                            suToccoCampanella = if (a.tripId != null) {
+                                {
+                                    scope.launch {
+                                        campanellaInCorsoId = a.tripId
+                                        try {
+                                            if (vigilataQui) {
+                                                Avvisami.ferma(contesto, a.tripId, stopId)
+                                            } else if (Notifiche.permessoConcesso(contesto)) {
+                                                Avvisami.avvia(contesto, stopId, stato.fermata?.name, a)
+                                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                // Il permesso POST_NOTIFICATIONS esiste solo da API 33;
+                                                // su versioni precedenti permessoConcesso restituisce sempre
+                                                // vero, quindi non si arriva mai qui.
+                                                arrivoInAttesaPermesso = a
+                                                campanellaInCorsoId = null
+                                                richiestaPermesso.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            }
+                                        } finally {
+                                            if (campanellaInCorsoId == a.tripId) campanellaInCorsoId = null
+                                        }
+                                    }
+                                }
+                            } else null,
                         )
                         HorizontalDivider(color = c.neutral200)
                     }
@@ -249,6 +311,9 @@ private fun RigaArrivo(
     aperto: Boolean,
     alternaAvviso: () -> Unit,
     apri: () -> Unit,
+    campanellaAccesa: Boolean,
+    campanellaInCorso: Boolean,
+    suToccoCampanella: (() -> Unit)?,
 ) {
     Column(Modifier.background(if (aperto) c.warn50 else c.neutral100)) {
     Row(
@@ -295,6 +360,16 @@ private fun RigaArrivo(
         )
         Spacer(Modifier.width(10.dp))
         Attesa(a, adesso, c)
+        // La campanella compare solo quando c'è un trip_id da sorvegliare.
+        // Senza trip_id non si mette nemmeno uno spazio vuoto: la riga deve
+        // avere la stessa struttura visiva di sempre, non un buco a destra.
+        if (suToccoCampanella != null) {
+            Campanella(
+                accesa = campanellaAccesa,
+                inCorso = campanellaInCorso,
+                onClick = suToccoCampanella,
+            )
+        }
     }
 
     if (aperto && suoiAvvisi != null) {
