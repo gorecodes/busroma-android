@@ -12,6 +12,24 @@
     <!-- Senza questa, BOOT_COMPLETED non arriva al ricevitore. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- SVEGLIA ESATTA, e serve davvero: l'ultimo controllo prima dell'arrivo
+         e' a un minuto di distanza, e l'unica sveglia inesatta che attraversa
+         il Doze non viene consegnata piu' di una volta ogni nove minuti.
+         Senza questi permessi setAlarmClock non degrada: solleva
+         SecurityException e l'app si chiude, che e' il difetto che questa
+         riga corregge.
+         USE_EXACT_ALARM (da Android 13) e' concesso all'installazione, senza
+         dialoghi ne' impostazioni da cercare. Il Play Store lo consente solo
+         alle app la cui funzione principale sono sveglie e promemoria: qui la
+         distribuzione e' F-Droid, dove quella politica non esiste, e se un
+         giorno si pubblicasse su Play questa riga va rivista.
+         SCHEDULE_EXACT_ALARM copre fino ad Android 12, dove USE_EXACT_ALARM
+         non esiste e quello e' pre-concesso all'installazione. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+
     <!-- Posizione PRECISA, e serve davvero.
          L'approssimata di Android non e' semplicemente meno accurata: e'
          agganciata a un'area di circa tre chilometri quadrati. Per una lista

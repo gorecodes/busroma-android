@@ -77,13 +77,33 @@ tre.
   non è fresco** — è lo stesso principio che la schermata degli arrivi applica
   già ai dati vecchi. Altrimenti si chiude in silenzio.
 
-### `setAlarmClock` e non `setExactAndAllowWhileIdle`
+### La sveglia esatta e il suo permesso
 
-`setAlarmClock` è esatto, attraversa il Doze e **non richiede alcun permesso**.
-`setExactAndAllowWhileIdle` da Android 13 pretende `SCHEDULE_EXACT_ALARM`, che
-l'utente deve concedere a mano dalle impostazioni, e `setAndAllowWhileIdle` in
-Doze non scatta più di una volta ogni 9 minuti — inutilizzabile per l'ultimo
-minuto. Il prezzo di `setAlarmClock` è l'icona della sveglia in barra di stato
+Questa parte del piano era **sbagliata** e la correzione è arrivata dal
+telefono: si era scritto che `setAlarmClock` non richiede permessi. Non è vero.
+Da Android 12 sta nell'elenco delle API di sveglia esatta insieme a `setExact`
+e `setExactAndAllowWhileIdle`, e senza permesso non degrada — solleva
+`SecurityException`, cioè chiude l'app nel momento in cui si tocca la
+campanella.
+
+L'esattezza serve davvero: l'ultimo controllo è a un minuto dall'arrivo, e
+`setAndAllowWhileIdle` — la sola inesatta che attraversa il Doze — non viene
+consegnata più di una volta ogni 9 minuti, quindi la notifica dei cinque minuti
+arriverebbe a bus passato. Quindi il permesso si dichiara, in due forme:
+`USE_EXACT_ALARM` da Android 13, concesso all'installazione senza dialoghi, e
+`SCHEDULE_EXACT_ALARM` con `maxSdkVersion="32"` per le versioni precedenti,
+dove è pre-concesso. Il Play Store riserva `USE_EXACT_ALARM` alle app la cui
+funzione principale sono sveglie e promemoria; la distribuzione qui è F-Droid,
+dove quella politica non esiste, e se un giorno si pubblicasse su Play va
+rivisto.
+
+Il ripiego inesatto resta come rete di sicurezza, perché il permesso può essere
+revocato da un'impostazione di sistema: in quel caso la notifica può arrivare
+tardi, che è peggio che puntuale ma incomparabilmente meglio di un'app che si
+chiude.
+
+Fra le esatte resta `setAlarmClock`, la sola che il sistema non rimanda nemmeno
+sotto restrizioni di batteria. Mostra l'icona della sveglia in barra di stato
 mentre una vigilanza è pendente: è un effetto collaterale onesto, dice che
 l'app sta aspettando qualcosa per te.
 
