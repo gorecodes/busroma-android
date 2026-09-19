@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -187,8 +187,11 @@ fun SchermataArrivi(
                 null,
             )
             else -> LazyColumn {
-                items(stato.arrivi, key = { "${it.routeId}-${it.directionId}-${it.etaTs}" }) { a ->
-                    val chiave = "${a.routeId}-${a.directionId}-${a.etaTs}"
+                // L'indice di posizione disambigua mezzi accodati o corse da
+                // tabella con lo stesso etaTs: senza di lui Compose solleva
+                // IllegalArgumentException su chiavi duplicate.
+                itemsIndexed(stato.arrivi, key = { idx, it -> "$idx-${it.routeId}-${it.directionId}-${it.etaTs}" }) { idx, a ->
+                    val chiave = "$idx-${a.routeId}-${a.directionId}-${a.etaTs}"
                     RigaArrivo(
                         a = a,
                         adesso = stato.adesso,
