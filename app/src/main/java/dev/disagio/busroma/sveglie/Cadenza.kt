@@ -1,5 +1,7 @@
 package dev.disagio.busroma.sveglie
 
+import java.time.Instant
+
 /**
  * Cosa fare a un risveglio.
  *
@@ -48,7 +50,12 @@ const val MAX_TENTATIVI = 3
  * Vedi la tabella in PIANO_SVEGLIA.md: 10 min oltre i 30, 5 min fra 15 e 30,
  * 2 min fra 8 e 15, 60 s sotto gli 8.
  */
-fun passoMs(residuoMs: Long): Long = TODO()
+fun passoMs(residuoMs: Long): Long = when {
+    residuoMs > 30 * 60_000L -> 10 * 60_000L
+    residuoMs > 15 * 60_000L ->  5 * 60_000L
+    residuoMs >  8 * 60_000L ->  2 * 60_000L
+    else                      ->      60_000L
+}
 
 /**
  * La decisione di un risveglio, senza toccare niente: è tutta la logica del
@@ -61,4 +68,55 @@ fun passoMs(residuoMs: Long): Long = TODO()
  *   endpoint).
  * @param adessoMs l'orologio, passato da fuori per poter essere finto nei test.
  */
-fun decidi(v: Vigilanza, etaMsFresco: Long?, adessoMs: Long): Esito = TODO()
+fun decidi(v: Vigilanza, etaMsFresco: Long?, adessoMs: Long): Esito {
+    // La scadenza ha priorità assoluta: una corsa cancellata non deve
+    // tenere sveglio il telefono per sempre.
+    if (adessoMs > v.scadenzaMs) return Esito.Abbandona
+
+    if (etaMsFresco != null) {
+        val residuo = etaMsFresco - adessoMs
+        if (residuo < PASSATO_MS) return Esito.Abbandona
+        if (residuo <= SOGLIA_NOTIFICA_MS) {
+            return Esito.Notifica(
+                minuti = (maxOf(0L, residuo) / 60_000L).toInt(),
+                fresco = true,
+            )
+        }
+        // Prossimo controllo: il minore fra eta−5min e adesso+passo,
+        // mai meno di MINIMO_MS da adesso.
+        val prossimo = maxOf(
+            adessoMs + MINIMO_MS,
+            minOf(etaMsFresco - 5 * 60_000L, adessoMs + passoMs(residuo)),
+        )
+        return Esito.Ricontrolla(
+            istanteMs = prossimo,
+            vigilanza = v.copy(
+                etaIso = Instant.ofEpochMilli(etaMsFresco).toString(),
+                tentativiFalliti = 0,
+            ),
+        )
+    }
+
+    // Controllo fallito (rete assente o corsa introvabile): i due casi
+    // arrivano qui indistinguibili. Si riprova fino a MAX_TENTATIVI volte.
+    val tentativi = v.tentativiFalliti + 1
+    if (tentativi < MAX_TENTATIVI) {
+        return Esito.Ricontrolla(adessoMs + 60_000L, v.copy(tentativiFalliti = tentativi))
+    }
+
+    // Tentativi esauriti: si decide con l'ETA noto all'ultimo controllo riuscito.
+    val etaNotoMs = try {
+        Instant.parse(v.etaIso).toEpochMilli()
+    } catch (e: Exception) {
+        return Esito.Abbandona
+    }
+    val residuoNoto = etaNotoMs - adessoMs
+    return if (residuoNoto in PASSATO_MS..SOGLIA_NOTIFICA_MS) {
+        Esito.Notifica(
+            minuti = (maxOf(0L, residuoNoto) / 60_000L).toInt(),
+            fresco = false,
+        )
+    } else {
+        Esito.Abbandona
+    }
+}

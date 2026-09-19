@@ -71,12 +71,11 @@ tre.
 - oltre la **scadenza**: `eta iniziale + 30 minuti`, con un tetto assoluto di
   2 ore dalla creazione (è l'equivalente della pulizia a 2 ore del worker).
   Una corsa cancellata non deve tenere sveglio il telefono per sempre.
-- corsa introvabile su entrambi gli endpoint: due ritentativi a 2 minuti, poi
-  si chiude in silenzio.
-- rete assente: tre ritentativi a 60 secondi. Se dopo il terzo l'ETA noto è
-  già dentro la finestra, si notifica **dichiarando che il dato non è fresco**
-  — è lo stesso principio che la schermata degli arrivi applica già ai dati
-  vecchi. Altrimenti si chiude.
+- controllo fallito (rete assente o corsa introvabile): i due casi arrivano a
+  `decidi` indistinguibili. Tre tentativi a 60 secondi; se al terzo fallimento
+  l'ETA noto è già dentro la finestra, si notifica **dichiarando che il dato
+  non è fresco** — è lo stesso principio che la schermata degli arrivi applica
+  già ai dati vecchi. Altrimenti si chiude in silenzio.
 
 ### `setAlarmClock` e non `setExactAndAllowWhileIdle`
 

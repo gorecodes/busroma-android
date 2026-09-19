@@ -1,8 +1,14 @@
 package dev.disagio.busroma.sveglie
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * Una vigilanza: "avvisami quando la corsa [tripId] arriva alla fermata
@@ -42,6 +48,19 @@ data class Vigilanza(
     }
 }
 
+// DataStore istanziato una volta sola per processo, come in Preferiti.
+private val Context.archivio by preferencesDataStore(name = "sveglie")
+private val CHIAVE = stringPreferencesKey("elenco")
+private val json = Json { ignoreUnknownKeys = true }
+
+private fun decodifica(grezzo: String): List<Vigilanza> =
+    try {
+        json.decodeFromString(grezzo)
+    } catch (e: Exception) {
+        // Un archivio illeggibile non deve impedire di usare l'app.
+        emptyList()
+    }
+
 /**
  * Il deposito delle vigilanze attive, su DataStore.
  *
@@ -54,15 +73,31 @@ data class Vigilanza(
 object Vigilanze {
 
     /** Per l'interfaccia: quali campanelle sono accese. */
-    fun flusso(context: Context): Flow<List<Vigilanza>> = TODO()
+    fun flusso(context: Context): Flow<List<Vigilanza>> =
+        context.archivio.data.map { p ->
+            val grezzo = p[CHIAVE] ?: return@map emptyList()
+            decodifica(grezzo)
+        }
 
     /** Per i ricevitori: una lettura sola, senza osservare. */
-    suspend fun elenco(context: Context): List<Vigilanza> = TODO()
+    suspend fun elenco(context: Context): List<Vigilanza> =
+        flusso(context).first()
 
-    suspend fun trova(context: Context, chiave: String): Vigilanza? = TODO()
+    suspend fun trova(context: Context, chiave: String): Vigilanza? =
+        elenco(context).find { it.chiave == chiave }
 
     /** Inserisce o sostituisce, per [Vigilanza.chiave]. */
-    suspend fun salva(context: Context, v: Vigilanza): Unit = TODO()
+    suspend fun salva(context: Context, v: Vigilanza) {
+        context.archivio.edit { p ->
+            val attuale = p[CHIAVE]?.let { decodifica(it) } ?: emptyList()
+            p[CHIAVE] = json.encodeToString(attuale.filterNot { it.chiave == v.chiave } + v)
+        }
+    }
 
-    suspend fun rimuovi(context: Context, chiave: String): Unit = TODO()
+    suspend fun rimuovi(context: Context, chiave: String) {
+        context.archivio.edit { p ->
+            val attuale = p[CHIAVE]?.let { decodifica(it) } ?: emptyList()
+            p[CHIAVE] = json.encodeToString(attuale.filterNot { it.chiave == chiave })
+        }
+    }
 }
