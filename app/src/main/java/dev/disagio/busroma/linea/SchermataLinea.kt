@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,9 +104,18 @@ fun SchermataLinea(
 
     var linea by remember(routeId) { mutableStateOf<Linea?>(null) }
     /** Quale fermata del percorso ha il pannello aperto. */
-    var apertaId by remember(routeId) { mutableStateOf<String?>(null) }
+    /**
+     * SOPRAVVIVONO ALL'ANDATA E RITORNO, e non e' pedanteria.
+     *
+     * Navigation Compose butta la composizione di questa schermata quando se
+     * ne apre un'altra: con un `remember` normale, tornando dall'orario il
+     * verso scelto si azzerava e l'effetto iniziale rimetteva il primo — un
+     * difetto visto in uso. `rememberSaveable` li conserva nello stato della
+     * voce di navigazione.
+     */
+    var apertaId by rememberSaveable(routeId) { mutableStateOf<String?>(null) }
     var versi by remember(routeId) { mutableStateOf<List<Verso>>(emptyList()) }
-    var verso by remember(routeId) { mutableStateOf<Int?>(null) }
+    var verso by rememberSaveable(routeId) { mutableStateOf<Int?>(null) }
     var fermate by remember(routeId) { mutableStateOf<List<FermataLinea>>(emptyList()) }
     /** Il tracciato per la mappa: 700 punti, si legge al cambio di verso. */
     var tracciato by remember(routeId) { mutableStateOf<List<List<Double>>?>(null) }
@@ -120,9 +130,14 @@ fun SchermataLinea(
             val r = Api.linea(routeId)
             linea = r.route
             versi = r.directions
-            // Il verso passato dalla ricerca se e' valido, altrimenti il primo.
-            verso = versoIniziale?.takeIf { v -> r.directions.any { it.directionId == v } }
-                ?: r.directions.firstOrNull()?.directionId
+            // SOLO SE NON C'E' GIA'. Al rientro dall'orario il verso e' stato
+            // ripristinato da rememberSaveable, e riscriverlo qui vanificherebbe
+            // il salvataggio: e' l'altra meta' della stessa correzione.
+            if (verso == null) {
+                // Il verso passato dalla ricerca se e' valido, altrimenti il primo.
+                verso = versoIniziale?.takeIf { v -> r.directions.any { it.directionId == v } }
+                    ?: r.directions.firstOrNull()?.directionId
+            }
         } catch (e: Exception) {
             errore = true
         }
