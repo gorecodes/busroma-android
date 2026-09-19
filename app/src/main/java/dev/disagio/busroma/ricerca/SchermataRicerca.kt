@@ -48,6 +48,13 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import dev.disagio.busroma.BuildConfig
+import dev.disagio.busroma.aggiornamenti.Aggiornamenti
+import dev.disagio.busroma.aggiornamenti.Esito
+import dev.disagio.busroma.aggiornamenti.VersioneRemota
 import dev.disagio.busroma.dati.nomeLinea
 import dev.disagio.busroma.storico.Storico
 import dev.disagio.busroma.storico.VoceStorico
@@ -57,6 +64,7 @@ import dev.disagio.busroma.preferiti.FermataPreferita
 import dev.disagio.busroma.preferiti.Preferiti as DepositoPreferiti
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalFocusManager
+import dev.disagio.busroma.ui.BannerAggiornamento
 import dev.disagio.busroma.ui.Croce
 import dev.disagio.busroma.ui.AzioniIntestazione
 import dev.disagio.busroma.ui.Stella
@@ -98,6 +106,17 @@ fun SchermataRicerca(
     // piu' di un elenco di cose cercate ieri.
     var toccato by remember { mutableStateOf(false) }
     val gestoreFuoco = LocalFocusManager.current
+    var versioneDisponibile by remember { mutableStateOf<VersioneRemota?>(null) }
+    if (BuildConfig.AGGIORNAMENTI_IN_APP) {
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        LaunchedEffect(Unit) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                val esito = Aggiornamenti.controlla(contesto)
+                // Gli errori si tacciono: un controllo fallito non vale un avviso.
+                if (esito is Esito.Disponibile) versioneDisponibile = esito.versione
+            }
+        }
+    }
 
     // L'INDIETRO DI SISTEMA SVUOTA LA RICERCA, non esce dall'app.
     //
@@ -114,6 +133,14 @@ fun SchermataRicerca(
     }
 
     Column(modifier.fillMaxSize().background(c.neutral100)) {
+        if (BuildConfig.AGGIORNAMENTI_IN_APP) {
+            versioneDisponibile?.let { versione ->
+                BannerAggiornamento(
+                    versione = versione,
+                    allaChiusura = { versioneDisponibile = null },
+                )
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
