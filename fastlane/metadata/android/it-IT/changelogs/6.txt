@@ -1,0 +1,5 @@
+"Qui intorno" ora si aggiorna da sé ogni trenta secondi: prima i minuti
+restavano congelati all'istante in cui era stata letta la posizione.
+
+E l'attesa scende con l'orologio, ogni secondo, invece di saltare solo quando
+arriva una risposta dal server.

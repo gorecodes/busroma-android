@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.drawBehind
 import dev.disagio.busroma.ui.Triangolo
 import dev.disagio.busroma.ui.DistintivoLinea
 import dev.disagio.busroma.ui.Stella
+import dev.disagio.busroma.ui.battito
 import dev.disagio.busroma.ui.theme.LocalPalette
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
@@ -90,6 +91,11 @@ fun SchermataArrivi(
     val stato by vm.stato.collectAsStateWithLifecycle()
     val c = LocalPalette.current
     val scope = rememberCoroutineScope()
+
+    // L'attesa scende con l'orologio, non solo quando arriva una risposta:
+    // `stato.adesso` si muove ogni quindici secondi, e fra un giro e l'altro i
+    // numeri sembravano congelati.
+    val ora = battito()
 
     // Il ciclo gira solo a schermata in primo piano: fuori da qui la coroutine
     // viene annullata e l'app smette di interrogare le API dalla tasca.
@@ -260,7 +266,7 @@ fun SchermataArrivi(
                             )
                         RigaArrivo(
                             a = a,
-                            adesso = stato.adesso,
+                            adesso = ora,
                             c = c,
                             suoiAvvisi = stato.avvisiPerLinea[a.shortName],
                             aperto = apertoId == chiave,

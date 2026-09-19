@@ -37,6 +37,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import dev.disagio.busroma.ui.battito
 import dev.disagio.busroma.dati.ArrivoVicino
 import dev.disagio.busroma.arrivi.minutiDa
 import dev.disagio.busroma.posizione.Posizione
@@ -75,6 +79,17 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
 
     // Se il permesso c'e' gia', si carica da se': il tasto serviva a chiederlo.
     LaunchedEffect(Unit) { vm.caricaSePossibile(contesto) }
+
+    // E POI SI TIENE AGGIORNATO. Solo a schermata in primo piano: fuori da qui
+    // la coroutine viene annullata e non si interroga niente dalla tasca.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(Unit) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { vm.ciclo(contesto) }
+    }
+
+    // L'orologio che batte: l'attesa scende da se' fra una risposta e l'altra,
+    // invece di restare ferma sull'ultimo valore ricevuto.
+    val ora = battito()
 
     fun carica() = vm.carica(contesto)
 
@@ -149,15 +164,15 @@ fun SezioneVicine(apri: (String) -> Unit, c: Palette) {
                     // del web.
                     val ordinati = when (ordine) {
                         Ordine.Distanza -> s.arrivi.sortedWith(
-                            compareBy({ it.distanzaM ?: Int.MAX_VALUE }, { minuti(it, s.adesso) }),
+                            compareBy({ it.distanzaM ?: Int.MAX_VALUE }, { minuti(it, ora) }),
                         )
                         Ordine.Attesa -> s.arrivi.sortedWith(
-                            compareBy({ minuti(it, s.adesso) }, { it.distanzaM ?: Int.MAX_VALUE }),
+                            compareBy({ minuti(it, ora) }, { it.distanzaM ?: Int.MAX_VALUE }),
                         )
                     }
 
                     ordinati.take(QUANTI).forEach { a ->
-                        RigaArrivoVicino(a, s.adesso, c) { apri(a.stopId) }
+                        RigaArrivoVicino(a, ora, c) { apri(a.stopId) }
                         HorizontalDivider(color = c.neutral200)
                     }
                 }

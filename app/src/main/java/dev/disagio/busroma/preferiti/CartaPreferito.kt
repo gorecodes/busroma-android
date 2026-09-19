@@ -34,6 +34,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.disagio.busroma.arrivi.minutiDa
 import dev.disagio.busroma.dati.Api
 import dev.disagio.busroma.dati.Arrivo
+import dev.disagio.busroma.ui.battito
 import dev.disagio.busroma.ui.theme.Palette
 import dev.disagio.busroma.ui.theme.stileNome
 import kotlinx.coroutines.delay
@@ -68,7 +69,9 @@ fun CartaPreferito(
     apri: () -> Unit,
 ) {
     var arrivi by remember(preferito.stopId) { mutableStateOf<List<Arrivo>?>(null) }
-    var adesso by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // Il battito e non un istante scritto a ogni risposta: cosi' l'attesa
+    // scende ogni secondo invece di saltare di trenta in trenta.
+    val adesso = battito()
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(preferito.stopId) {
@@ -81,7 +84,6 @@ fun CartaPreferito(
                     // trenta secondi fa vale piu' di una scheda vuota. Se non
                     // c'era nulla, resta il puntino di attesa.
                 }
-                adesso = System.currentTimeMillis()
                 delay(INTERVALLO_MS)
             }
         }
