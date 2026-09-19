@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -193,8 +196,36 @@ private fun Griglia(voci: List<VoceOrario>, giorno: GiornoOrario, c: Palette) {
         m
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        perOra.forEach { (ora, indici) ->
+    // SI SCORRE DA SE', E DENTRO UN'ALTEZZA MASSIMA.
+    //
+    // Correzione di un difetto visto in uso: l'orario sta nel blocco FISSO
+    // della pagina della linea - intestazione, verso, mappa, partenze - mentre
+    // l'unica cosa che scorre e' la lista delle fermate sotto. Venti righe di
+    // orario crescevano quindi fuori dallo schermo senza che nulla le potesse
+    // scorrere.
+    //
+    // Si sceglie una LazyColumn con un tetto di altezza invece di rendere
+    // scorrevole tutta la pagina: la mappa resta dove e', e una mappa che
+    // scorre dentro una lista che scorre e' un litigio fra due gesti (e' la
+    // ragione per cui questa pagina e' fatta cosi'). Il tetto lascia in vista
+    // il titolo e l'interruttore mentre si scorre l'orario.
+    val statoLista = rememberLazyListState()
+    val righe = remember(perOra) { perOra.toList() }
+
+    // Si parte dall'ora della prossima partenza, non dalle cinque del mattino:
+    // alle nove di sera aprire l'orario e vedere "05 30 46" e' inutile.
+    LaunchedEffect(righe, prossimoIndice) {
+        val i = prossimoIndice ?: return@LaunchedEffect
+        val riga = righe.indexOfFirst { (_, indici) -> i in indici }
+        if (riga > 0) statoLista.scrollToItem(riga)
+    }
+
+    LazyColumn(
+        state = statoLista,
+        modifier = Modifier.heightIn(max = 260.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        items(righe, key = { (ora, _) -> ora }) { (ora, indici) ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Text(
                     // % 24: l'ora 24 e' mezzanotte, la 25 e' l'una.
