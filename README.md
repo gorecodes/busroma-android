@@ -9,6 +9,13 @@ reale di ATAC, letti da un server intermedio che li normalizza; l'app non ha
 logica di dominio a bordo — le ragioni di questa e delle altre scelte stanno in
 [PIANO.md](PIANO.md), che è il documento da leggere prima del codice.
 
+**Il sito e il server stanno in un altro repository:**
+[gorecodes/AtacWatch](https://github.com/gorecodes/AtacWatch). Lì vivono gli
+endpoint che questa app interroga, il lavoratore che digerisce il feed ATAC ogni
+sessanta secondi e la versione web. Le due interfacce sono deliberatamente la
+stessa cosa: dove una si comporta diversamente dall'altra, è un difetto di una
+delle due.
+
 Cosa sa fare:
 
 - **arrivi a una fermata**, ricalcolati sull'orologio del telefono e non presi
