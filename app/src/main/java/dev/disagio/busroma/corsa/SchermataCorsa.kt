@@ -87,6 +87,9 @@ fun SchermataCorsa(
     var destinazione by remember(tripId) { mutableStateOf<String?>(null) }
     var caricata by remember(tripId) { mutableStateOf(false) }
     var errore by remember(tripId) { mutableStateOf(false) }
+    /** Il verso dichiarato dalla corsa: serve a chiedere il tracciato giusto. */
+    var verso by remember(tripId) { mutableStateOf<Int?>(null) }
+    var tracciato by remember(tripId) { mutableStateOf<List<List<Double>>?>(null) }
     var adesso by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -99,6 +102,7 @@ fun SchermataCorsa(
                     mezzo = r.vehicle
                     fermate = r.stops
                     destinazione = r.headsign
+                    verso = r.directionId
                     errore = false
                 } catch (e: Exception) {
                     // Si tengono i dati precedenti, come altrove: una corsa
@@ -109,6 +113,24 @@ fun SchermataCorsa(
                 adesso = System.currentTimeMillis()
                 delay(INTERVALLO_MS)
             }
+        }
+    }
+
+    // IL TRACCIATO DELLA LINEA, letto UNA VOLTA e non a ogni giro di
+    // aggiornamento: sono qualche centinaio di punti che non cambiano mentre
+    // guardi la corsa. La chiave e' linea piu' verso, quindi se la corsa
+    // cambia si rilegge da se'.
+    val routeId = linea?.routeId
+    LaunchedEffect(routeId, verso) {
+        val r = routeId ?: return@LaunchedEffect
+        tracciato = try {
+            // Verso assente: si tenta lo zero, che e' quello che le linee
+            // romane dichiarano quando ne hanno uno solo.
+            Api.fermateLinea(r, verso ?: 0).shape?.coordinates
+        } catch (e: Exception) {
+            // Senza tracciato la mappa mostra comunque fermate e mezzo: e'
+            // esattamente come si comportava prima di questa aggiunta.
+            null
         }
     }
 
@@ -132,11 +154,24 @@ fun SchermataCorsa(
     Column(modifier.fillMaxSize().background(c.neutral100)) {
         Intestazione(linea, mezzo, destinazione, adesso, c, apriAvvisi)
 
-        // La mappa della corsa: SENZA TRACCIATO, come sul web. Qui interessa
-        // dove sta il mezzo adesso rispetto alle fermate che gli restano, e il
-        // filo del percorso lo si ha nella pagina della linea. Piu' bassa che
-        // la' (220 contro 240) perche' sotto c'e' una lista di cinquanta
-        // fermate che e' il pezzo forte di questa schermata.
+        // La mappa della corsa: CON IL TRACCIATO, al contrario del web.
+        //
+        // DECISIONE ROVESCIATA GUARDANDO LO SCHERMO. Prima era senza, con la
+        // motivazione che qui interessa dove sta il mezzo rispetto alle
+        // fermate che gli restano e che il filo del percorso si ha nella
+        // pagina della linea. Sul telefono quella scelta non regge: una
+        // ventina di pallini sparsi su una mappa senza niente che li unisca
+        // non si legge come una scelta, si legge come una mappa che non ha
+        // finito di caricare — ed e' stata segnalata come tale.
+        //
+        // Il tracciato e' quello del VERSO della linea, non della singola
+        // corsa: su una corsa variante puo' discostarsi per un tratto. Meglio
+        // un filo che passa per la strada giusta quasi sempre che nessun filo
+        // mai.
+        //
+        // Piu' bassa che nella pagina della linea (220 contro 240) perche'
+        // sotto c'e' una lista di cinquanta fermate che e' il pezzo forte di
+        // questa schermata.
         if (fermate.isNotEmpty() || mezzo != null) {
             Spacer(Modifier.height(12.dp))
             Box(
@@ -156,7 +191,7 @@ fun SchermataCorsa(
                     mezzi = mezzo?.let {
                         listOf(PuntoMezzo(it.vehicleId, it.lat, it.lon, it.bearing))
                     } ?: emptyList(),
-                    tracciato = null,
+                    tracciato = tracciato,
                     coloreLinea = linea?.color,
                     modifier = Modifier.fillMaxSize(),
                     fermataToccata = { apriFermata(it.stopId) },
