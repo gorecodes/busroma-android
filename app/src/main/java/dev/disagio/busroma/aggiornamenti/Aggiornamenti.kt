@@ -1,7 +1,22 @@
 package dev.disagio.busroma.aggiornamenti
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import dev.disagio.busroma.BuildConfig
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * La versione pubblicata, come la descrive il file allegato alla release.
@@ -42,6 +57,11 @@ sealed interface Esito {
  */
 const val INTERVALLO_CONTROLLO_MS = 15 * 60_000L
 
+private val Context.archivio by preferencesDataStore(name = "aggiornamenti")
+
+private val CHIAVE_ULTIMO_CONTROLLO = longPreferencesKey("ultimoControllo")
+private val CHIAVE_VERSIONE_IGNORATA = intPreferencesKey("versionCodeIgnorata")
+
 /**
  * Il controllo degli aggiornamenti.
  *
@@ -61,6 +81,19 @@ object Aggiornamenti {
         "https://github.com/${dev.disagio.busroma.BuildConfig.REPO_RILASCI}" +
             "/releases/latest/download/$nomeApk"
 
+    // Client separato da Api: quello ha User-Agent, base URL e timeout
+    // calibrati per le API di Bus Roma. Questo è un controllo di cortesia
+    // su un file di duecento byte: timeout brevi e nessun overhead.
+    private val client = HttpClient(OkHttp) {
+        install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true })
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 5_000
+            connectTimeoutMillis = 3_000
+        }
+    }
+
     /**
      * Controlla, rispettando il freno.
      *
@@ -68,7 +101,47 @@ object Aggiornamenti {
      *   nelle Informazioni: in quel caso il freno si ignora, perché un tasto
      *   che a volte non fa niente è peggio di nessun tasto.
      */
-    suspend fun controlla(context: Context, forzato: Boolean = false): Esito = TODO()
+    suspend fun controlla(context: Context, forzato: Boolean = false): Esito {
+        // La variante F-Droid non ha aggiornamenti in-app per definizione:
+        // l'app la distribuisce il repository, non noi.
+        if (!BuildConfig.AGGIORNAMENTI_IN_APP) return Esito.Nessuno
+
+        val prefs = try {
+            context.archivio.data.first()
+        } catch (e: Exception) {
+            // Archivio illeggibile: si va avanti come se non ci fossero dati.
+            null
+        }
+
+        if (!forzato) {
+            val ultimoControllo = prefs?.get(CHIAVE_ULTIMO_CONTROLLO) ?: 0L
+            if (System.currentTimeMillis() - ultimoControllo < INTERVALLO_CONTROLLO_MS) {
+                return Esito.Nessuno
+            }
+        }
+
+        return try {
+            val remota = client.get(URL_ULTIMA).body<VersioneRemota>()
+            // Si segna l'istante solo dopo aver ricevuto risposta: un errore
+            // di rete non deve far scattare il freno dei 15 minuti.
+            context.archivio.edit { p ->
+                p[CHIAVE_ULTIMO_CONTROLLO] = System.currentTimeMillis()
+            }
+            val codiceIgnorato = prefs?.get(CHIAVE_VERSIONE_IGNORATA)
+            if (daMostrare(remota, BuildConfig.VERSION_CODE, codiceIgnorato)) {
+                Esito.Disponibile(remota)
+            } else {
+                Esito.Nessuno
+            }
+        } catch (e: CancellationException) {
+            // La coroutine è stata annullata dall'esterno: non è un errore
+            // di rete, si rilancia prima del catch generico. Stesso motivo
+            // del commento in RicercaViewModel.
+            throw e
+        } catch (e: Exception) {
+            Esito.Errore
+        }
+    }
 
     /**
      * "Non mostrarmi più questa versione": l'utente ha chiuso il banner.
@@ -76,9 +149,21 @@ object Aggiornamenti {
      * Si ricorda il versionCode e non un booleano, così la versione DOPO torna
      * ad annunciarsi da sé.
      */
-    suspend fun ignora(context: Context, versionCode: Int): Unit = TODO()
+    suspend fun ignora(context: Context, versionCode: Int) {
+        context.archivio.edit { p ->
+            p[CHIAVE_VERSIONE_IGNORATA] = versionCode
+        }
+    }
 
-    suspend fun ignorata(context: Context, versionCode: Int): Boolean = TODO()
+    suspend fun ignorata(context: Context, versionCode: Int): Boolean {
+        val prefs = try {
+            context.archivio.data.first()
+        } catch (e: Exception) {
+            // Archivio illeggibile: si comporta come se non ci fosse nulla da ignorare.
+            return false
+        }
+        return prefs[CHIAVE_VERSIONE_IGNORATA] == versionCode
+    }
 }
 
 /**
@@ -93,4 +178,4 @@ fun daMostrare(
     remota: VersioneRemota,
     codiceInstallato: Int,
     codiceIgnorato: Int?,
-): Boolean = TODO()
+): Boolean = remota.versionCode > codiceInstallato && remota.versionCode != codiceIgnorato
